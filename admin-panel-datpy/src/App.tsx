@@ -4,13 +4,17 @@ import AdminLayout from "./layouts/AdminLayout";
 import Dashboard from "./pages/dashboard/Dashboard";
 import Marcas from "./pages/marcas/Marcas";
 
-function App() {
+interface Props {
+  toggleTheme: () => void;
+}
+
+function App({ toggleTheme }: Props) {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Login />} />
 
-        <Route element={<AdminLayout />}>
+        <Route element={<AdminLayout toggleTheme={toggleTheme} />}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/marcas" element={<Marcas />} />
         </Route>

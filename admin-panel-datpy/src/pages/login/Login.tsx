@@ -1,5 +1,6 @@
 import { useState } from "react";
-import api from "../../services/api";
+import { useAuth } from "../../context/AuthContext";
+import { useNavigate } from "react-router-dom";
 import {
   Box,
   Card,
@@ -7,7 +8,10 @@ import {
   Button,
   Typography,
   InputAdornment,
-  CircularProgress
+  CircularProgress,
+  Checkbox,
+  FormControlLabel,
+  Link
 } from "@mui/material";
 import EmailIcon from "@mui/icons-material/Email";
 import LockIcon from "@mui/icons-material/Lock";
@@ -17,64 +21,71 @@ interface LoginForm {
   email: string;
   password: string;
   ruc: string;
+  remember: boolean;
 }
 
 export default function Login() {
+  const { login } = useAuth();
+  const navigate = useNavigate();
+
   const [form, setForm] = useState<LoginForm>({
     email: "",
     password: "",
-    ruc: ""
+    ruc: "",
+    remember: false
   });
 
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async () => {
-    try {
-      setLoading(true);
-      const res = await api.post("/api/auth/signin", form);
-      localStorage.setItem("accessToken", res.data.accessToken);
-      localStorage.setItem("refreshToken", res.data.refreshToken);
-      window.location.href = "/dashboard";
-    } catch {
-      alert("Credenciales inválidas");
-    } finally {
-      setLoading(false);
-    }
-  };
+const handleSubmit = async () => {
+  try {
+    setLoading(true);
+
+    console.log("Enviando form:", form);
+
+    await login(form);
+
+    navigate("/dashboard");
+  } catch (error) {
+    console.log("ERROR COMPLETO:", error);
+    alert("Credenciales inválidas");
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <Box
       sx={{
         height: "100vh",
         display: "flex",
-        backgroundColor: "#f4f6f9"
+        backgroundColor: "#f8fafc"
       }}
     >
-      {/* PANEL IZQUIERDO ILUSTRACIÓN */}
+      {/* PANEL IZQUIERDO */}
       <Box
         sx={{
           flex: 1,
           display: { xs: "none", md: "flex" },
           alignItems: "center",
           justifyContent: "center",
-          backgroundColor: "#1e293b",
+          backgroundColor: "#0f172a",
           color: "white",
           flexDirection: "column",
-          p: 6
+          p: 8
         }}
       >
-        <Typography variant="h4" fontWeight="bold" mb={2}>
-          Tu Plataforma SaaS
+        <Typography variant="h3" fontWeight="bold" mb={2}>
+          Datpy Admin
         </Typography>
 
-        <Typography variant="body1" sx={{ opacity: 0.7 }}>
-          Gestiona productos, marcas y catálogos
-          <br />
-          desde un solo lugar.
+        <Typography sx={{ opacity: 0.6, textAlign: "center", maxWidth: 400 }}>
+          Plataforma multiempresa para gestión de productos,
+          marcas y catálogos digitales.
         </Typography>
       </Box>
 
-      {/* PANEL DERECHO FORM */}
+      {/* PANEL DERECHO */}
       <Box
         sx={{
           flex: 1,
@@ -85,25 +96,28 @@ export default function Login() {
       >
         <Card
           sx={{
-            width: 400,
-            p: 4,
-            borderRadius: 4,
-            boxShadow: "0 10px 30px rgba(0,0,0,0.08)"
+            width: 420,
+            p: 5,
+            borderRadius: 5,
+            boxShadow: "0 20px 40px rgba(0,0,0,0.06)",
+            animation: "fadeIn 0.6s ease-in-out"
           }}
         >
-          <Typography
-            variant="h5"
-            fontWeight="bold"
-            textAlign="center"
-            mb={3}
-          >
-            Panel Administrativo
-          </Typography>
+          <Box textAlign="center" mb={3}>
+            <Typography
+              variant="h5"
+              fontWeight="bold"
+              color="#0f172a"
+            >
+              PANEL ADMINISTRATIVO
+            </Typography>
+          </Box>
 
           <TextField
             fullWidth
             label="Email"
             margin="normal"
+            value={form.email}
             onChange={(e) =>
               setForm({ ...form, email: e.target.value })
             }
@@ -121,6 +135,7 @@ export default function Login() {
             label="Password"
             type="password"
             margin="normal"
+            value={form.password}
             onChange={(e) =>
               setForm({ ...form, password: e.target.value })
             }
@@ -137,6 +152,7 @@ export default function Login() {
             fullWidth
             label="RUC Empresa"
             margin="normal"
+            value={form.ruc}
             onChange={(e) =>
               setForm({ ...form, ruc: e.target.value })
             }
@@ -149,12 +165,42 @@ export default function Login() {
             }}
           />
 
+          <Box
+            display="flex"
+            justifyContent="space-between"
+            alignItems="center"
+            mt={2}
+          >
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={form.remember}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      remember: e.target.checked
+                    })
+                  }
+                />
+              }
+              label="Recordar sesión"
+            />
+
+            <Link
+              href="#"
+              underline="hover"
+              fontSize={14}
+            >
+              ¿Olvidaste tu contraseña?
+            </Link>
+          </Box>
+
           <Button
             fullWidth
             variant="contained"
             sx={{
               mt: 3,
-              height: 48,
+              height: 50,
               fontWeight: "bold",
               borderRadius: 3,
               backgroundColor: "#2563eb",
@@ -173,6 +219,21 @@ export default function Login() {
           </Button>
         </Card>
       </Box>
+
+      <style>
+        {`
+          @keyframes fadeIn {
+            from {
+              opacity: 0;
+              transform: translateY(20px);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+        `}
+      </style>
     </Box>
   );
 }

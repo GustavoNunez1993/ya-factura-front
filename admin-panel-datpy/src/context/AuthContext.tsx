@@ -1,36 +1,62 @@
-import { createContext, useState } from "react";
 import type { ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect
+} from "react";
+import api from "../services/api";
 
 interface AuthContextType {
-  token: string | null;
-  login: (token: string) => void;
+  user: any;
+  loading: boolean;
+  login: (form: any) => Promise<void>;
   logout: () => void;
 }
 
-export const AuthContext = createContext<AuthContextType>({
-  token: null,
-  login: () => {},
-  logout: () => {}
-});
+const AuthContext = createContext<AuthContextType>(
+  {} as AuthContextType
+);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState<string | null>(
-    localStorage.getItem("accessToken")
-  );
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  const login = (token: string) => {
-    localStorage.setItem("accessToken", token);
-    setToken(token);
+  useEffect(() => {
+    const storedUser = localStorage.getItem("user");
+
+    if (storedUser) {
+      setUser(JSON.parse(storedUser));
+    }
+
+    setLoading(false);
+  }, []);
+
+  const login = async (form: any) => {
+    const res = await api.post("/api/auth/signin", form);
+
+    localStorage.setItem("accessToken", res.data.accessToken);
+    localStorage.setItem("refreshToken", res.data.refreshToken);
+    localStorage.setItem("user", JSON.stringify(res.data.user));
+
+    setUser(res.data.user);
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await api.post("/api/auth/logout");
+    } catch {}
+
     localStorage.clear();
-    setToken(null);
+    setUser(null);
+    window.location.href = "/";
   };
 
   return (
-    <AuthContext.Provider value={{ token, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, logout }}>
       {children}
     </AuthContext.Provider>
   );
 }
+
+export const useAuth = () => useContext(AuthContext);
