@@ -1,183 +1,182 @@
-import {
-  Drawer,
-  List,
-  ListItemButton,
-  ListItemText,
-  Collapse,
-  ListItemIcon
-} from "@mui/material";
-
-import DashboardIcon from "@mui/icons-material/Dashboard";
-import SettingsIcon from "@mui/icons-material/Settings";
-import InventoryIcon from "@mui/icons-material/Inventory";
-import CategoryIcon from "@mui/icons-material/Category";
-import ExpandLess from "@mui/icons-material/ExpandLess";
-import ExpandMore from "@mui/icons-material/ExpandMore";
-
 import { useNavigate, useLocation } from "react-router-dom";
 import { useState } from "react";
 
-export default function Sidebar() {
+interface Props {
+  collapsed: boolean;
+  mobileOpen: boolean;
+  setMobileOpen: (value: boolean) => void;
+}
+
+export default function Sidebar({ collapsed }: Props) {
+
   const navigate = useNavigate();
   const location = useLocation();
 
   const isActive = (path: string) =>
     location.pathname === path;
 
-  const [openConfig, setOpenConfig] = useState(
-    location.pathname.includes("productos") ||
-    location.pathname.includes("marcas") ||
-    location.pathname.includes("categorias")
-  );
+  const [openConfig, setOpenConfig] = useState(true);
+  const [openFacturacion, setOpenFacturacion] = useState(false);
+  const [openReportes, setOpenReportes] = useState(false);
 
   return (
-    <Drawer
-      variant="permanent"
-      sx={{
-        "& .MuiDrawer-paper": {
-          width: 240,
-          backgroundColor: "#ffffff",
-          borderRight: "1px solid #e5e7eb"
-        }
+
+    <aside
+      style={{
+        width: collapsed ? 80 : 240,
+        transition: "width .25s",
+        background: "#0f2747",
+        borderRight: "1px solid #14315a",
+        height: "100%",
+        overflowY: "auto",
+        color: "#d6e4ff"
       }}
     >
-      <List>
 
-        {/* DASHBOARD */}
-        <ListItemButton
-          selected={isActive("/dashboard")}
-          onClick={() => navigate("/dashboard")}
-        >
-          <ListItemIcon>
-            <DashboardIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText primary="Dashboard" />
-        </ListItemButton>
+      <div
+        style={{
+          padding: "20px",
+          fontWeight: 600,
+          fontSize: 16,
+          textAlign: collapsed ? "center" : "left",
+          borderBottom: "1px solid #14315a"
+        }}
+      >
+        {collapsed ? "SA" : "Sistema Administrativo"}
+      </div>
 
-        {/* DASHBOARD */}
-        <ListItemButton
-          selected={isActive("/dashboard")}
-          onClick={() => navigate("/dashboard")}
-        >
-          <ListItemIcon>
-            <DashboardIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText primary="Dashboard" />
-        </ListItemButton>
+      <MenuItem
+        icon="pi pi-home"
+        label="Dashboard"
+        collapsed={collapsed}
+        active={isActive("/dashboard")}
+        onClick={() => navigate("/dashboard")}
+      />
 
+      <MenuItem
+        icon="pi pi-cog"
+        label="Configuraciones"
+        collapsed={collapsed}
+        expandable
+        open={openConfig}
+        onClick={() => setOpenConfig(!openConfig)}
+      />
 
-        {/* CONFIGURACIONES */}
-        <ListItemButton
-          onClick={() => setOpenConfig(!openConfig)}
-        >
-          <ListItemIcon>
-            <SettingsIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText primary="Configuraciones" />
-          {openConfig ? <ExpandLess /> : <ExpandMore />}
-        </ListItemButton>
+      {openConfig && !collapsed && (
+        <>
+          <SubItem icon="pi pi-box" label="Productos" onClick={() => navigate("/productos")} />
+          <SubItem icon="pi pi-tags" label="Marcas" onClick={() => navigate("/marcas")} />
+          <SubItem icon="pi pi-tags" label="Familias" onClick={() => navigate("/familias")} />
+          <SubItem icon="pi pi-tags" label="Colores" onClick={() => navigate("/colores")} />
+          <SubItem icon="pi pi-tags" label="Talles" onClick={() => navigate("/talles")} />
+        </>
+      )}
 
-        {/* CONFIGURACIONES */}
-        <ListItemButton
-          onClick={() => setOpenConfig(!openConfig)}
-        >
-          <ListItemIcon>
-            <SettingsIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText primary="Facturacion" />
-          {openConfig ? <ExpandLess /> : <ExpandMore />}
-        </ListItemButton>
+      <MenuItem
+        icon="pi pi-file"
+        label="Facturación"
+        collapsed={collapsed}
+        expandable
+        open={openFacturacion}
+        onClick={() => setOpenFacturacion(!openFacturacion)}
+      />
 
-        <Collapse in={openConfig} timeout="auto" unmountOnExit>
-          <List component="div" disablePadding>
+      {openFacturacion && !collapsed && (
+        <>
+          <SubItem icon="pi pi-receipt" label="Facturación" onClick={() => navigate("/facturacion")} />
+          <SubItem icon="pi pi-play" label="Apertura Caja" onClick={() => navigate("/apertura-caja")} />
+          <SubItem icon="pi pi-stop" label="Cierre Caja" onClick={() => navigate("/cierre-caja")} />
+        </>
+      )}
 
-            <ListItemButton
-              sx={{ pl: 4 }}
-              selected={isActive("/facturacion")}
-              onClick={() => navigate("/facturacion")}
-            >
-              <ListItemIcon>
-                <InventoryIcon fontSize="small" />
-              </ListItemIcon>
-              <ListItemText primary="Facturación" />
-            </ListItemButton>
+      <MenuItem
+        icon="pi pi-chart-bar"
+        label="Reportes"
+        collapsed={collapsed}
+        expandable
+        open={openReportes}
+        onClick={() => setOpenReportes(!openReportes)}
+      />
 
-            <ListItemButton
-              sx={{ pl: 4 }}
-              selected={isActive("/marcas")}
-              onClick={() => navigate("/marcas")}
-            >
-              <ListItemIcon>
-                <CategoryIcon fontSize="small" />
-              </ListItemIcon>
-              <ListItemText primary="Apertura Caja" />
-            </ListItemButton>
+      {openReportes && !collapsed && (
+        <>
+          <SubItem icon="pi pi-chart-line" label="Ventas" onClick={() => navigate("/ventas")} />
+          <SubItem icon="pi pi-database" label="Stock" onClick={() => navigate("/stock")} />
+        </>
+      )}
 
-            <ListItemButton
-              sx={{ pl: 4 }}
-              selected={isActive("/categorias")}
-              onClick={() => navigate("/categorias")}
-            >
-              <ListItemIcon>
-                <CategoryIcon fontSize="small" />
-              </ListItemIcon>
-              <ListItemText primary="Cierre de Caja" />
-            </ListItemButton>
+    </aside>
 
-          </List>
-        </Collapse>
-
-        {/* CONFIGURACIONES */}
-        <ListItemButton
-          onClick={() => setOpenConfig(!openConfig)}
-        >
-          <ListItemIcon>
-            <SettingsIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText primary="Reportes" />
-          {openConfig ? <ExpandLess /> : <ExpandMore />}
-        </ListItemButton>
-
-        <Collapse in={openConfig} timeout="auto" unmountOnExit>
-          <List component="div" disablePadding>
-
-            <ListItemButton
-              sx={{ pl: 4 }}
-              selected={isActive("/facturacion")}
-              onClick={() => navigate("/facturacion")}
-            >
-              <ListItemIcon>
-                <InventoryIcon fontSize="small" />
-              </ListItemIcon>
-              <ListItemText primary="Ventas" />
-            </ListItemButton>
-
-            <ListItemButton
-              sx={{ pl: 4 }}
-              selected={isActive("/marcas")}
-              onClick={() => navigate("/marcas")}
-            >
-              <ListItemIcon>
-                <CategoryIcon fontSize="small" />
-              </ListItemIcon>
-              <ListItemText primary="Stock de Productos" />
-            </ListItemButton>
-
-            <ListItemButton
-              sx={{ pl: 4 }}
-              selected={isActive("/categorias")}
-              onClick={() => navigate("/categorias")}
-            >
-              <ListItemIcon>
-                <CategoryIcon fontSize="small" />
-              </ListItemIcon>
-              <ListItemText primary="Apertura Caja" />
-            </ListItemButton>
-
-          </List>
-        </Collapse>
-
-      </List>
-    </Drawer>
   );
+
+}
+
+function MenuItem({ icon, label, collapsed, active, expandable, open, onClick }: any) {
+
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        padding: collapsed ? "14px" : "14px 22px",
+        cursor: "pointer",
+        background: active ? "#1e4f8a" : "transparent",
+        borderLeft: active ? "3px solid #4fd1ff" : "3px solid transparent",
+        transition: "all .15s"
+      }}
+    >
+
+      <i
+        className={icon}
+        style={{
+          fontSize: 16,
+          width: 28,
+          color: "#4fd1ff"
+        }}
+      />
+
+      {!collapsed && (
+        <>
+          <span style={{ fontSize: 14 }}>
+            {label}
+          </span>
+
+          {expandable && (
+            <i
+              className={open ? "pi pi-chevron-up" : "pi pi-chevron-down"}
+              style={{ marginLeft: "auto", fontSize: 12 }}
+            />
+          )}
+        </>
+      )}
+
+    </div>
+  );
+
+}
+
+function SubItem({ icon, label, onClick }: any) {
+
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        padding: "12px 48px",
+        cursor: "pointer",
+        color: "#c7d7ff"
+      }}
+    >
+
+      <i className={icon} style={{ width: 24, color: "#4fd1ff" }} />
+
+      <span style={{ fontSize: 13 }}>
+        {label}
+      </span>
+
+    </div>
+  );
+
 }

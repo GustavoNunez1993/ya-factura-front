@@ -3,6 +3,7 @@ import Login from "./pages/login/Login";
 import AdminLayout from "./layouts/AdminLayout";
 import Dashboard from "./pages/dashboard/Dashboard";
 import Marcas from "./pages/marcas/Marcas";
+import FamiliasPage from "./pages/familia/FamiliasPage";
 
 interface Props {
   toggleTheme: () => void;
@@ -17,6 +18,7 @@ function App({ toggleTheme }: Props) {
         <Route element={<AdminLayout toggleTheme={toggleTheme} />}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/marcas" element={<Marcas />} />
+          <Route path="/familias" element={<FamiliasPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

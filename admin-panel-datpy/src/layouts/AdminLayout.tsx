@@ -1,14 +1,11 @@
 import { Outlet } from "react-router-dom";
-import { Box } from "@mui/material";
-import { useState } from "react";
-import { useTheme } from "@mui/material/styles";
-import useMediaQuery from "@mui/material/useMediaQuery";
+import { useState, useEffect } from "react";
 
 import Sidebar from "../components/Sidebar";
 import Topbar from "./Topbar";
 import BreadcrumbsNav from "../components/BreadcrumbsNav";
 
-const drawerWidth = 260;
+const drawerWidth = 240;
 const miniWidth = 80;
 
 interface Props {
@@ -16,16 +13,27 @@ interface Props {
 }
 
 export default function AdminLayout({ toggleTheme }: Props) {
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
 
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
-  const drawerSpace = collapsed ? miniWidth : drawerWidth;
+  useEffect(() => {
+
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    handleResize();
+    window.addEventListener("resize", handleResize);
+
+    return () => window.removeEventListener("resize", handleResize);
+
+  }, []);
 
   return (
-    <Box sx={{ display: "flex", height: "100vh" }}>
+
+    <div className="flex flex-column h-screen">
 
       <Topbar
         toggleSidebar={() =>
@@ -36,54 +44,48 @@ export default function AdminLayout({ toggleTheme }: Props) {
         toggleTheme={toggleTheme}
       />
 
-      {!isMobile && (
-        <Box
-          sx={{
-            width: drawerSpace,
-            flexShrink: 0,
-            transition: "width .2s ease"
-          }}
+      <div className="flex flex-1 overflow-hidden">
+
+        <Sidebar
+          collapsed={collapsed}
+          mobileOpen={mobileOpen}
+          setMobileOpen={setMobileOpen}
         />
-      )}
 
-      <Sidebar
-        collapsed={collapsed}
-        mobileOpen={mobileOpen}
-        setMobileOpen={setMobileOpen}
-      />
+        <main
+          className="flex-1 overflow-auto"
+          style={{
+            background: "#f4f6f9",
+            padding: "24px"
+          }}
+        >
 
-      <Box
-        component="main"
-        sx={{
-          flexGrow: 1,
-          mt: 8,
-          backgroundColor:
-            theme.palette.mode === "dark"
-              ? "#0b1120"
-              : "#f4f6f9",
-          p: 3,
-          overflow: "auto"
-        }}
-      >
-        <Box sx={{ maxWidth: 1400, margin: "0 auto" }}>
-          <BreadcrumbsNav />
+          <div style={{ maxWidth: 1400, margin: "0 auto" }}>
 
-          <Box
-            sx={{
-              backgroundColor:
-                theme.palette.mode === "dark"
-                  ? "#111827"
-                  : "#ffffff",
-              border: "1px solid #e5e7eb",
-              borderRadius: 2,
-              p: 3,
-              boxShadow: "0 2px 6px rgba(0,0,0,0.03)"
-            }}
-          >
-            <Outlet />
-          </Box>
-        </Box>
-      </Box>
-    </Box>
+            <BreadcrumbsNav />
+
+            <div
+              style={{
+                background: "#ffffff",
+                borderRadius: "10px",
+                padding: "24px",
+                border: "1px solid #e5e7eb",
+                boxShadow: "0 4px 12px rgba(0,0,0,0.05)"
+              }}
+            >
+
+              <Outlet />
+
+            </div>
+
+          </div>
+
+        </main>
+
+      </div>
+
+    </div>
+
   );
+
 }

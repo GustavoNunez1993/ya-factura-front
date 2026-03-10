@@ -1,32 +1,39 @@
-import { Typography, Paper } from "@mui/material";
-import Grid from "@mui/material/Grid";
+import { Card } from "primereact/card";
 
 export default function Dashboard() {
   return (
-    <>
-      <Typography variant="h5" fontWeight={600} mb={3}>
-        Dashboard
-      </Typography>
+    <div>
 
-      <Grid container spacing={3}>
-        <Grid xs={12} md={4}>
-          <Paper sx={{ p: 3, borderRadius: 3 }}>
-            Ventas Hoy
-          </Paper>
-        </Grid>
+      <h2 className="mb-4">Dashboard</h2>
 
-        <Grid xs={12} md={4}>
-          <Paper sx={{ p: 3, borderRadius: 3 }}>
-            Facturas Emitidas
-          </Paper>
-        </Grid>
+      <div className="grid">
 
-        <Grid xs={12} md={4}>
-          <Paper sx={{ p: 3, borderRadius: 3 }}>
-            Productos Activos
-          </Paper>
-        </Grid>
-      </Grid>
-    </>
+        <div className="col-12 md:col-4">
+          <Card title="Ventas Hoy">
+            <p className="text-xl font-bold">
+              0
+            </p>
+          </Card>
+        </div>
+
+        <div className="col-12 md:col-4">
+          <Card title="Facturas Emitidas">
+            <p className="text-xl font-bold">
+              0
+            </p>
+          </Card>
+        </div>
+
+        <div className="col-12 md:col-4">
+          <Card title="Productos Activos">
+            <p className="text-xl font-bold">
+              0
+            </p>
+          </Card>
+        </div>
+
+      </div>
+
+    </div>
   );
 }

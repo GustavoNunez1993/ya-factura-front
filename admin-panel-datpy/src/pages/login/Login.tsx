@@ -1,21 +1,12 @@
 import { useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { useNavigate } from "react-router-dom";
-import {
-  Box,
-  Card,
-  TextField,
-  Button,
-  Typography,
-  InputAdornment,
-  CircularProgress,
-  Checkbox,
-  FormControlLabel,
-  Link
-} from "@mui/material";
-import EmailIcon from "@mui/icons-material/Email";
-import LockIcon from "@mui/icons-material/Lock";
-import BusinessIcon from "@mui/icons-material/Business";
+
+import { Card } from "primereact/card";
+import { InputText } from "primereact/inputtext";
+import { Password } from "primereact/password";
+import { Button } from "primereact/button";
+import { Checkbox } from "primereact/checkbox";
 
 interface LoginForm {
   email: string;
@@ -25,6 +16,7 @@ interface LoginForm {
 }
 
 export default function Login() {
+
   const { login } = useAuth();
   const navigate = useNavigate();
 
@@ -37,203 +29,184 @@ export default function Login() {
 
   const [loading, setLoading] = useState(false);
 
-const handleSubmit = async () => {
-  try {
-    setLoading(true);
-
-    console.log("Enviando form:", form);
-
-    await login(form);
-
-    navigate("/dashboard");
-  } catch (error) {
-    console.log("ERROR COMPLETO:", error);
-    alert("Credenciales inválidas");
-  } finally {
-    setLoading(false);
-  }
-};
+  const handleSubmit = async () => {
+    try {
+      setLoading(true);
+      await login(form);
+      navigate("/dashboard");
+    } catch (error) {
+      alert("Credenciales inválidas");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <Box
-      sx={{
+    <div
+      className="flex"
+      style={{
         height: "100vh",
-        display: "flex",
-        backgroundColor: "#f8fafc"
+        background:
+          "linear-gradient(135deg,#0f172a,#1e293b)"
       }}
     >
+
       {/* PANEL IZQUIERDO */}
-      <Box
-        sx={{
+
+      <div
+        className="hidden md:flex flex-column justify-content-center"
+        style={{
           flex: 1,
-          display: { xs: "none", md: "flex" },
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: "#0f172a",
           color: "white",
-          flexDirection: "column",
-          p: 8
+          padding: "80px"
         }}
       >
-        <Typography variant="h3" fontWeight="bold" mb={2}>
+
+        <h1 style={{ fontSize: 48, fontWeight: 700 }}>
           Datpy Admin
-        </Typography>
+        </h1>
 
-        <Typography sx={{ opacity: 0.6, textAlign: "center", maxWidth: 400 }}>
+        <p style={{ opacity: 0.7, maxWidth: 400 }}>
           Plataforma multiempresa para gestión de productos,
-          marcas y catálogos digitales.
-        </Typography>
-      </Box>
+          facturación y administración de catálogos.
+        </p>
 
-      {/* PANEL DERECHO */}
-      <Box
-        sx={{
-          flex: 1,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center"
-        }}
+      </div>
+
+      {/* LOGIN */}
+
+      <div
+        className="flex align-items-center justify-content-center"
+        style={{ flex: 1 }}
       >
+
         <Card
-          sx={{
+          style={{
             width: 420,
-            p: 5,
-            borderRadius: 5,
-            boxShadow: "0 20px 40px rgba(0,0,0,0.06)",
-            animation: "fadeIn 0.6s ease-in-out"
+            borderRadius: 12
           }}
+          className="shadow-6 p-4"
         >
-          <Box textAlign="center" mb={3}>
-            <Typography
-              variant="h5"
-              fontWeight="bold"
-              color="#0f172a"
-            >
-              PANEL ADMINISTRATIVO
-            </Typography>
-          </Box>
 
-          <TextField
-            fullWidth
-            label="Email"
-            margin="normal"
-            value={form.email}
-            onChange={(e) =>
-              setForm({ ...form, email: e.target.value })
-            }
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <EmailIcon />
-                </InputAdornment>
-              )
-            }}
-          />
+          <div className="text-center mb-4">
 
-          <TextField
-            fullWidth
-            label="Password"
-            type="password"
-            margin="normal"
-            value={form.password}
-            onChange={(e) =>
-              setForm({ ...form, password: e.target.value })
-            }
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <LockIcon />
-                </InputAdornment>
-              )
-            }}
-          />
+            <h2 style={{ marginBottom: 8 }}>
+              Panel Administrativo
+            </h2>
 
-          <TextField
-            fullWidth
-            label="RUC Empresa"
-            margin="normal"
-            value={form.ruc}
-            onChange={(e) =>
-              setForm({ ...form, ruc: e.target.value })
-            }
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <BusinessIcon />
-                </InputAdornment>
-              )
-            }}
-          />
+            <span style={{ color: "#64748b" }}>
+              Ingrese sus credenciales
+            </span>
 
-          <Box
-            display="flex"
-            justifyContent="space-between"
-            alignItems="center"
-            mt={2}
-          >
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={form.remember}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      remember: e.target.checked
-                    })
-                  }
-                />
+          </div>
+
+          {/* EMAIL */}
+
+          <div className="mb-3">
+
+            <label>Email</label>
+
+            <span className="p-input-icon-left w-full">
+              <i className="pi pi-envelope"/>
+              <InputText
+                className="w-full"
+                value={form.email}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    email: e.target.value
+                  })
+                }
+              />
+            </span>
+
+          </div>
+
+          {/* PASSWORD */}
+
+          <div className="mb-3">
+
+            <label>Password</label>
+
+            <Password
+              className="w-full"
+              inputClassName="w-full"
+              feedback={false}
+              toggleMask
+              value={form.password}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  password: e.target.value
+                })
               }
-              label="Recordar sesión"
             />
 
-            <Link
-              href="#"
-              underline="hover"
-              fontSize={14}
-            >
+          </div>
+
+          {/* RUC */}
+
+          <div className="mb-3">
+
+            <label>RUC Empresa</label>
+
+            <span className="p-input-icon-left w-full">
+              <i className="pi pi-building"/>
+              <InputText
+                className="w-full"
+                value={form.ruc}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    ruc: e.target.value
+                  })
+                }
+              />
+            </span>
+
+          </div>
+
+          {/* RECORDAR */}
+
+          <div className="flex justify-content-between align-items-center mb-3">
+
+            <div className="flex align-items-center gap-2">
+
+              <Checkbox
+                checked={form.remember}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    remember: e.checked || false
+                  })
+                }
+              />
+
+              <label>Recordar sesión</label>
+
+            </div>
+
+            <a href="#" style={{ fontSize: 14 }}>
               ¿Olvidaste tu contraseña?
-            </Link>
-          </Box>
+            </a>
+
+          </div>
+
+          {/* LOGIN */}
 
           <Button
-            fullWidth
-            variant="contained"
-            sx={{
-              mt: 3,
-              height: 50,
-              fontWeight: "bold",
-              borderRadius: 3,
-              backgroundColor: "#2563eb",
-              "&:hover": {
-                backgroundColor: "#1d4ed8"
-              }
-            }}
+            label="Ingresar"
+            icon="pi pi-sign-in"
+            className="w-full"
+            severity="primary"
+            loading={loading}
             onClick={handleSubmit}
-            disabled={loading}
-          >
-            {loading ? (
-              <CircularProgress size={24} sx={{ color: "white" }} />
-            ) : (
-              "Ingresar"
-            )}
-          </Button>
-        </Card>
-      </Box>
+          />
 
-      <style>
-        {`
-          @keyframes fadeIn {
-            from {
-              opacity: 0;
-              transform: translateY(20px);
-            }
-            to {
-              opacity: 1;
-              transform: translateY(0);
-            }
-          }
-        `}
-      </style>
-    </Box>
+        </Card>
+
+      </div>
+
+    </div>
   );
 }

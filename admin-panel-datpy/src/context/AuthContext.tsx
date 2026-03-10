@@ -19,10 +19,12 @@ const AuthContext = createContext<AuthContextType>(
 );
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+
     const storedUser = localStorage.getItem("user");
 
     if (storedUser) {
@@ -30,26 +32,59 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     setLoading(false);
+
   }, []);
 
   const login = async (form: any) => {
-    const res = await api.post("/api/auth/signin", form);
 
-    localStorage.setItem("accessToken", res.data.accessToken);
-    localStorage.setItem("refreshToken", res.data.refreshToken);
-    localStorage.setItem("user", JSON.stringify(res.data.user));
+    try {
 
-    setUser(res.data.user);
+      const res = await api.post("/auth/signin", form);
+
+      const { accessToken, refreshToken, user } = res.data;
+
+      if (!accessToken || !user) {
+        throw new Error("Respuesta inválida del servidor");
+      }
+
+      // Guardar tokens
+      localStorage.setItem("accessToken", accessToken);
+
+      if (refreshToken) {
+        localStorage.setItem("refreshToken", refreshToken);
+      }
+
+      // Guardar usuario
+      localStorage.setItem("user", JSON.stringify(user));
+
+      // Guardar empresaId
+      if (user.empresaId) {
+        localStorage.setItem("empresaId", user.empresaId);
+      }
+
+      setUser(user);
+
+    } catch (error) {
+
+      console.error("Error en login:", error);
+      throw error;
+
+    }
+
   };
 
   const logout = async () => {
+
     try {
-      await api.post("/api/auth/logout");
-    } catch {}
+      await api.post("/auth/logout");
+    } catch (error) {
+      console.warn("Logout sin respuesta del backend");
+    }
 
     localStorage.clear();
     setUser(null);
     window.location.href = "/";
+
   };
 
   return (

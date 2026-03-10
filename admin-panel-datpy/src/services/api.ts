@@ -1,33 +1,44 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL
+  baseURL: import.meta.env.VITE_API_BASE_URL
 });
 
-// 🔹 Request interceptor
+//  Request interceptor
 api.interceptors.request.use((config) => {
+
   const token = localStorage.getItem("accessToken");
 
-  if (token) {
+  // ❌ NO enviar token en login ni refresh
+  if (
+    token &&
+    !config.url?.includes("/auth/signin") &&
+    !config.url?.includes("/auth/refresh")
+  ) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+
 
   return config;
 });
 
-// 🔹 Response interceptor (AUTO REFRESH)
+//  Response interceptor (AUTO REFRESH)
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
+
     const originalRequest = error.config;
 
     if (
       error.response?.status === 401 &&
-      !originalRequest._retry
+      !originalRequest._retry &&
+      !originalRequest.url?.includes("/auth/signin")
     ) {
+
       originalRequest._retry = true;
 
       try {
+
         const refreshToken = localStorage.getItem("refreshToken");
 
         if (!refreshToken) {
@@ -35,7 +46,7 @@ api.interceptors.response.use(
         }
 
         const res = await axios.post(
-          `${import.meta.env.VITE_API_URL}/api/auth/refresh`,
+          `${import.meta.env.VITE_API_BASE_URL}/auth/refresh`,
           { refreshToken }
         );
 
@@ -46,9 +57,12 @@ api.interceptors.response.use(
           `Bearer ${res.data.accessToken}`;
 
         return api(originalRequest);
+
       } catch (err) {
+
         localStorage.clear();
         window.location.href = "/";
+
         return Promise.reject(err);
       }
     }

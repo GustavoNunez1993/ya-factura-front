@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 import api from "../../services/api";
-import { Button, TextField } from "@mui/material";
+
+import { Button } from "primereact/button";
+import { InputText } from "primereact/inputtext";
+import { DataTable } from "primereact/datatable";
+import { Column } from "primereact/column";
 
 interface Marca {
   id: string;
@@ -8,6 +12,7 @@ interface Marca {
 }
 
 export default function Marcas() {
+
   const [marcas, setMarcas] = useState<Marca[]>([]);
   const [nombre, setNombre] = useState("");
 
@@ -17,9 +22,13 @@ export default function Marcas() {
   };
 
   const crearMarca = async () => {
+
+    if (!nombre.trim()) return;
+
     await api.post("/api/admin/marcas", { nombre });
-    fetchMarcas();
+
     setNombre("");
+    fetchMarcas();
   };
 
   useEffect(() => {
@@ -27,22 +36,41 @@ export default function Marcas() {
   }, []);
 
   return (
-    <>
-      <h2>Marcas</h2>
+    <div>
 
-      <TextField
-        label="Nueva Marca"
-        value={nombre}
-        onChange={(e) => setNombre(e.target.value)}
-      />
+      <div className="flex align-items-center gap-2 mb-3">
 
-      <Button onClick={crearMarca}>Guardar</Button>
+        <InputText
+          placeholder="Nueva Marca"
+          value={nombre}
+          onChange={(e) => setNombre(e.target.value)}
+        />
 
-      <ul>
-        {marcas.map((m) => (
-          <li key={m.id}>{m.nombre}</li>
-        ))}
-      </ul>
-    </>
+        <Button
+          label="Guardar"
+          icon="pi pi-check"
+          severity="success"
+          onClick={crearMarca}
+        />
+
+      </div>
+
+      <DataTable
+        value={marcas}
+        paginator
+        rows={10}
+        stripedRows
+        showGridlines
+      >
+
+        <Column
+          field="nombre"
+          header="Nombre de Marca"
+          sortable
+        />
+
+      </DataTable>
+
+    </div>
   );
 }
