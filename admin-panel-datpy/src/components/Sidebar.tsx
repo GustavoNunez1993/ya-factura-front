@@ -19,6 +19,15 @@ export default function Sidebar({ collapsed }: Props) {
   const [openFacturacion, setOpenFacturacion] = useState(false);
   const [openReportes, setOpenReportes] = useState(false);
 
+  const handleLogout = () => {
+
+  localStorage.removeItem("token");
+  localStorage.removeItem("user");
+
+  window.location.href = "/login";
+
+};
+
   return (
 
     <aside
@@ -67,6 +76,7 @@ export default function Sidebar({ collapsed }: Props) {
           <SubItem icon="pi pi-box" label="Productos" onClick={() => navigate("/productos")} />
           <SubItem icon="pi pi-tags" label="Marcas" onClick={() => navigate("/marcas")} />
           <SubItem icon="pi pi-tags" label="Familias" onClick={() => navigate("/familias")} />
+            <SubItem icon="pi pi-tags" label="Sub-Familias" onClick={() => navigate("/sub-familias")} />
           <SubItem icon="pi pi-tags" label="Colores" onClick={() => navigate("/colores")} />
           <SubItem icon="pi pi-tags" label="Talles" onClick={() => navigate("/talles")} />
         </>
@@ -104,6 +114,42 @@ export default function Sidebar({ collapsed }: Props) {
           <SubItem icon="pi pi-database" label="Stock" onClick={() => navigate("/stock")} />
         </>
       )}
+
+      {/* FOOTER */}
+
+<div
+  style={{
+    marginTop: "auto",
+    borderTop: "1px solid #14315a",
+    padding: collapsed ? "16px 0" : "16px 20px"
+  }}
+>
+
+  <div
+    onClick={() => handleLogout()}
+    style={{
+      display: "flex",
+      alignItems: "center",
+      cursor: "pointer",
+      color: "#ff6b6b"
+    }}
+  >
+
+    <i
+      className="pi pi-sign-out"
+      style={{
+        fontSize: 16,
+        width: 28
+      }}
+    />
+
+    {!collapsed && (
+      <span>Logout</span>
+    )}
+
+  </div>
+
+</div>
 
     </aside>
 

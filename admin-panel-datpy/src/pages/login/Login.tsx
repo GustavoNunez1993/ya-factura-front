@@ -2,25 +2,21 @@ import { useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 
-import { Card } from "primereact/card";
 import { InputText } from "primereact/inputtext";
 import { Password } from "primereact/password";
 import { Button } from "primereact/button";
 import { Checkbox } from "primereact/checkbox";
 
-interface LoginForm {
-  email: string;
-  password: string;
-  ruc: string;
-  remember: boolean;
-}
+import "./login.css";
+import loginImage from "../../assets/login2.jpeg";
+import Swal from "sweetalert2";
 
 export default function Login() {
 
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const [form, setForm] = useState<LoginForm>({
+  const [form, setForm] = useState({
     email: "",
     password: "",
     ruc: "",
@@ -29,75 +25,74 @@ export default function Login() {
 
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async () => {
-    try {
-      setLoading(true);
-      await login(form);
-      navigate("/dashboard");
-    } catch (error) {
-      alert("Credenciales inválidas");
-    } finally {
-      setLoading(false);
-    }
-  };
+const handleSubmit = async () => {
+
+  if (!form.email || !form.password || !form.ruc) {
+
+    Swal.fire({
+      icon: "warning",
+      title: "Campos incompletos",
+      text: "Debe completar todos los campos",
+      confirmButtonColor: "#4361ee"
+    });
+
+    return;
+  }
+
+  try {
+
+    setLoading(true);
+
+    await login(form);
+
+    navigate("/dashboard");
+
+  } catch {
+
+    Swal.fire({
+      icon: "error",
+      title: "Error de autenticación",
+      text: "Credenciales inválidas",
+      confirmButtonColor: "#4361ee"
+    });
+
+  } finally {
+
+    setLoading(false);
+
+  }
+
+};
 
   return (
-    <div
-      className="flex"
-      style={{
-        height: "100vh",
-        background:
-          "linear-gradient(135deg,#0f172a,#1e293b)"
-      }}
-    >
 
-      {/* PANEL IZQUIERDO */}
+    <div className="login-wrapper">
 
-      <div
-        className="hidden md:flex flex-column justify-content-center"
-        style={{
-          flex: 1,
-          color: "white",
-          padding: "80px"
-        }}
-      >
+      {/* ILUSTRACION */}
 
-        <h1 style={{ fontSize: 48, fontWeight: 700 }}>
-          Datpy Admin
-        </h1>
+      <div className="login-left">
 
-        <p style={{ opacity: 0.7, maxWidth: 400 }}>
-          Plataforma multiempresa para gestión de productos,
-          facturación y administración de catálogos.
-        </p>
+        <img
+          src={loginImage}
+          alt="login"
+        />
+
+
 
       </div>
 
-      {/* LOGIN */}
+      {/* FORM */}
 
-      <div
-        className="flex align-items-center justify-content-center"
-        style={{ flex: 1 }}
-      >
+      <div className="login-right">
 
-        <Card
-          style={{
-            width: 420,
-            borderRadius: 12
-          }}
-          className="shadow-6 p-4"
-        >
+        <div className="login-card">
 
-          <div className="text-center mb-4">
+          <div className="login-title">
+            Bienvenid@ Nuevamente
+          </div>
 
-            <h2 style={{ marginBottom: 8 }}>
-              Panel Administrativo
-            </h2>
-
-            <span style={{ color: "#64748b" }}>
-              Ingrese sus credenciales
-            </span>
-
+          <div className="login-sub">
+            Ingrese sus credenciales para continuar
           </div>
 
           {/* EMAIL */}
@@ -106,19 +101,13 @@ export default function Login() {
 
             <label>Email</label>
 
-            <span className="p-input-icon-left w-full">
-              <i className="pi pi-envelope"/>
-              <InputText
-                className="w-full"
-                value={form.email}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    email: e.target.value
-                  })
-                }
-              />
-            </span>
+            <InputText
+              className="w-full"
+              value={form.email}
+              onChange={(e) =>
+                setForm({ ...form, email: e.target.value })
+              }
+            />
 
           </div>
 
@@ -135,10 +124,7 @@ export default function Login() {
               toggleMask
               value={form.password}
               onChange={(e) =>
-                setForm({
-                  ...form,
-                  password: e.target.value
-                })
+                setForm({ ...form, password: e.target.value })
               }
             />
 
@@ -150,63 +136,52 @@ export default function Login() {
 
             <label>RUC Empresa</label>
 
-            <span className="p-input-icon-left w-full">
-              <i className="pi pi-building"/>
-              <InputText
-                className="w-full"
-                value={form.ruc}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    ruc: e.target.value
-                  })
-                }
-              />
-            </span>
+            <InputText
+              className="w-full"
+              value={form.ruc}
+              onChange={(e) =>
+                setForm({ ...form, ruc: e.target.value })
+              }
+            />
 
           </div>
 
           {/* RECORDAR */}
 
-          <div className="flex justify-content-between align-items-center mb-3">
+          <div className="flex align-items-center mb-3">
 
-            <div className="flex align-items-center gap-2">
+            <Checkbox
+              checked={form.remember}
+              onChange={(e) =>
+                setForm({ ...form, remember: e.checked || false })
+              }
+            />
 
-              <Checkbox
-                checked={form.remember}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    remember: e.checked || false
-                  })
-                }
-              />
-
-              <label>Recordar sesión</label>
-
-            </div>
-
-            <a href="#" style={{ fontSize: 14 }}>
-              ¿Olvidaste tu contraseña?
-            </a>
+            <label className="ml-2">
+              Recordar mis credenciales
+            </label>
 
           </div>
 
           {/* LOGIN */}
 
           <Button
-            label="Ingresar"
-            icon="pi pi-sign-in"
+            label="Login Now"
             className="w-full"
-            severity="primary"
             loading={loading}
             onClick={handleSubmit}
           />
+          <h5 className="mt-3">
+            ¿No tienes una cuenta? <a href="#">Regístrate aquí</a>
+          </h5>
+          <label>Todos los derechos reservados @DatpyInformatica </label>
 
-        </Card>
+        </div>
 
       </div>
 
     </div>
+
   );
+
 }

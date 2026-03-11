@@ -4,6 +4,7 @@ import AdminLayout from "./layouts/AdminLayout";
 import Dashboard from "./pages/dashboard/Dashboard";
 import Marcas from "./pages/marcas/Marcas";
 import FamiliasPage from "./pages/familia/FamiliasPage";
+import SubFamiliasPage from "./pages/sub_familias/SubFamiliasPage";
 
 interface Props {
   toggleTheme: () => void;
@@ -19,6 +20,7 @@ function App({ toggleTheme }: Props) {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/marcas" element={<Marcas />} />
           <Route path="/familias" element={<FamiliasPage />} />
+          <Route path="/sub-familias" element={<SubFamiliasPage />} />
         </Route>
       </Routes>
     </BrowserRouter>
