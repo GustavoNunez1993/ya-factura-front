@@ -1,10 +1,10 @@
 import api from "./api";
 
-export const SubFamiliaService = {
+export const UnidadMedidaService = {
   async getPaginated(page: number, size: number, search: string = "") {
     const empresaId = localStorage.getItem("empresaId");
 
-    const res = await api.get("/sub-familias", {
+    const res = await api.get("/unidad-medida", {
       params: {
         empresaId,
         page,
@@ -16,36 +16,21 @@ export const SubFamiliaService = {
     return res.data;
   },
 
-  async getAll() {
-    const empresaId = localStorage.getItem("empresaId");
+async getAll() {
+  const empresaId = localStorage.getItem("empresaId");
 
-    const res = await api.get("/sub-familias", {
-      params: {
-        empresaId,
-        page: 0,
-        size: 1000,
-        search: ""
-      }
-    });
+  const res = await api.get("/unidad-medida/all", {
+    params: { empresaId }
+  });
 
-    return res.data?.content ?? [];
-  },
-
-  async getById(id: string) {
-    const empresaId = localStorage.getItem("empresaId");
-
-    const res = await api.get(`/sub-familias/${id}`, {
-      params: { empresaId }
-    });
-
-    return res.data;
-  },
+  return res.data ?? [];
+},
 
   async create(data: any) {
     const empresaId = localStorage.getItem("empresaId");
 
     const res = await api.post(
-      "/sub-familias",
+      "/unidad-medida",
       data,
       {
         params: { empresaId }
@@ -59,7 +44,7 @@ export const SubFamiliaService = {
     const empresaId = localStorage.getItem("empresaId");
 
     const res = await api.put(
-      `/sub-familias/${id}`,
+      `/unidad-medida/${id}`,
       data,
       {
         params: { empresaId }
@@ -72,13 +57,11 @@ export const SubFamiliaService = {
   async remove(id: string) {
     const empresaId = localStorage.getItem("empresaId");
 
-    const res = await api.delete(
-      `/sub-familias/${id}`,
+    await api.delete(
+      `/unidad-medida/${id}`,
       {
         params: { empresaId }
       }
     );
-
-    return res.data;
   }
 };
