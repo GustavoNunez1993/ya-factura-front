@@ -1,0 +1,45 @@
+.dashboard-kpi {
+  transition: all 0.25s ease;
+  cursor: default;
+}
+
+.dashboard-kpi:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.18) !important;
+}
+
+.dashboard-action-btn {
+  height: 3.2rem;
+  border-radius: 14px !important;
+  border: 1px solid #dbe4f0 !important;
+  background: #ffffff !important;
+  color: #334155 !important;
+  transition: all 0.2s ease;
+  font-weight: 600;
+}
+
+.dashboard-action-btn:hover {
+  transform: translateY(-2px);
+  background: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.08);
+}
+
+.dashboard-table-btn {
+  border-radius: 12px !important;
+}
+
+.p-card {
+  border-radius: 22px;
+}
+
+.p-datatable .p-datatable-thead > tr > th {
+  background: #f8fafc;
+  color: #334155;
+  border-color: #e2e8f0;
+  font-weight: 700;
+}
+
+.p-datatable .p-datatable-tbody > tr > td {
+  border-color: #eef2f7;
+}

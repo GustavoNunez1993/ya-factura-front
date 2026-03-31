@@ -23,6 +23,12 @@ function App({ toggleTheme }: Props) {
           <Route path="/familias" element={<FamiliasPage />} />
           <Route path="/sub-familias" element={<SubFamiliasPage />} />
           <Route path="/productos" element={<ProductosPage/>}/>
+                    <Route path="/clientes" element={<ProductosPage/>}/>
+          <Route path="/paises" element={<ProductosPage/>}/>
+          <Route path="/departamentos" element={<ProductosPage/>}/>
+          <Route path="/distritos" element={<ProductosPage/>}/>
+          <Route path="/ciudades" element={<ProductosPage/>}/>
+
         </Route>
       </Routes>
     </BrowserRouter>

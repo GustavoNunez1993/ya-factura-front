@@ -485,17 +485,17 @@ export default function ProductosPage() {
                     style={{ width: "100px", textAlign: "center" }}
                 />
 
-                   <Column
+                <Column
                     field="marca"
                     header="Marca"
                     style={{ width: "100px", textAlign: "center" }}
                 />
-                      <Column
+                <Column
                     field="familia"
                     header="Familia"
                     style={{ width: "100px", textAlign: "center" }}
                 />
-                      <Column
+                <Column
                     field="subFamilia"
                     header="Sub-Familia"
                     style={{ width: "100px", textAlign: "center" }}
