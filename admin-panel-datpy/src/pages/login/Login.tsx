@@ -120,6 +120,8 @@ const handleSubmit = async () => {
             <Password
               className="w-full"
               inputClassName="w-full"
+              style={{ width: "100%" }}
+              inputStyle={{ width: "100%" }}
               feedback={false}
               toggleMask
               value={form.password}

@@ -11,7 +11,7 @@ interface AuthContextType {
   user: any;
   loading: boolean;
   login: (form: any) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>(
@@ -83,7 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     localStorage.clear();
     setUser(null);
-    window.location.href = "/";
+    window.location.href = "/login";
 
   };
 

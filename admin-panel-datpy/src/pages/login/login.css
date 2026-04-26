@@ -68,3 +68,14 @@ html, body, #root {
   color:#777;
   margin-bottom:25px;
 }
+
+.login-card .p-password,
+.login-card .p-password .p-icon-field{
+  display:flex;
+  width:100%;
+}
+
+.login-card .p-password .p-inputtext,
+.login-card .p-password input{
+  width:100%;
+}

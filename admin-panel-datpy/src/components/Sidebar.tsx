@@ -1,5 +1,6 @@
 import { useNavigate, useLocation } from "react-router-dom";
 import { useState } from "react";
+import { useAuth } from "../context/AuthContext";
 
 interface Props {
   collapsed: boolean;
@@ -27,6 +28,7 @@ interface SubItemProps {
 export default function Sidebar({ collapsed }: Props) {
   const navigate = useNavigate();
   const location = useLocation();
+  const { logout } = useAuth();
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -35,10 +37,8 @@ export default function Sidebar({ collapsed }: Props) {
   const [openReportes, setOpenReportes] = useState(false);
   const [openProductos, setOpenProductos] = useState(false);
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    window.location.href = "/login";
+  const handleLogout = async () => {
+    await logout();
   };
 
   return (
@@ -82,7 +82,7 @@ export default function Sidebar({ collapsed }: Props) {
         expandable
         open={openConfig}
         active={
-          isActive("/clientes") ||
+          isActive("/personas") ||
           isActive("/pais") ||
           isActive("/departamentos") ||
           isActive("/distritos") ||
@@ -95,9 +95,9 @@ export default function Sidebar({ collapsed }: Props) {
         <>
           <SubItem
             icon="pi pi-users"
-            label="Clientes"
-            active={isActive("/clientes")}
-            onClick={() => navigate("/clientes")}
+            label="Personas"
+            active={isActive("/personas")}
+            onClick={() => navigate("/personas")}
           />
           <SubItem
             icon="pi pi-globe"
