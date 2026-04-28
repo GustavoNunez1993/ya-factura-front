@@ -36,6 +36,7 @@ export default function Sidebar({ collapsed }: Props) {
   const [openFacturacion, setOpenFacturacion] = useState(false);
   const [openReportes, setOpenReportes] = useState(false);
   const [openProductos, setOpenProductos] = useState(false);
+  const [openCuentaCorriente, setOpenCuentaCorriente] = useState(false);
 
   const handleLogout = async () => {
     await logout();
@@ -99,29 +100,19 @@ export default function Sidebar({ collapsed }: Props) {
             active={isActive("/personas")}
             onClick={() => navigate("/personas")}
           />
+
           <SubItem
-            icon="pi pi-globe"
-            label="Países"
-            active={isActive("/paises")}
-            onClick={() => navigate("/paises")}
+            icon="pi pi-users"
+            label="Proveedores"
+            active={isActive("/proveedores")}
+            onClick={() => navigate("/proveedores")}
           />
+
           <SubItem
-            icon="pi pi-map"
-            label="Departamentos"
-            active={isActive("/departamentos")}
-            onClick={() => navigate("/departamentos")}
-          />
-          <SubItem
-            icon="pi pi-map-marker"
-            label="Distritos"
-            active={isActive("/distritos")}
-            onClick={() => navigate("/distritos")}
-          />
-          <SubItem
-            icon="pi pi-building"
-            label="Ciudades"
-            active={isActive("/ciudades")}
-            onClick={() => navigate("/ciudades")}
+            icon="pi pi-users"
+            label="Bancos"
+            active={isActive("/bancos")}
+            onClick={() => navigate("/bancos")}
           />
         </>
       )}
@@ -217,6 +208,36 @@ export default function Sidebar({ collapsed }: Props) {
             label="Cierre Caja"
             active={isActive("/cierre-caja")}
             onClick={() => navigate("/cierre-caja")}
+          />
+        </>
+      )}
+
+      <MenuItem
+        icon="pi pi-credit-card"
+        label="Cuenta Corrientes"
+        collapsed={collapsed}
+        expandable
+        open={openCuentaCorriente}
+        active={
+          isActive("/cuenta-corriente/clientes") ||
+          isActive("/cuenta-corriente/proveedores")
+        }
+        onClick={() => setOpenCuentaCorriente(!openCuentaCorriente)}
+      />
+
+      {openCuentaCorriente && !collapsed && (
+        <>
+          <SubItem
+            icon="pi pi-users"
+            label="Clientes"
+            active={isActive("/cuenta-corriente/clientes")}
+            onClick={() => navigate("/cuenta-corriente/clientes")}
+          />
+          <SubItem
+            icon="pi pi-briefcase"
+            label="Proveedores"
+            active={isActive("/cuenta-corriente/proveedores")}
+            onClick={() => navigate("/cuenta-corriente/proveedores")}
           />
         </>
       )}

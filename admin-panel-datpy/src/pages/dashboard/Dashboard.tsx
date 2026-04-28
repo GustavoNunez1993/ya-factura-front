@@ -142,8 +142,8 @@ export default function Dashboard() {
       rowData.estado === "Pagada"
         ? "success"
         : rowData.estado === "Pendiente"
-        ? "warning"
-        : "danger";
+          ? "warning"
+          : "danger";
 
     return <Tag value={rowData.estado} severity={severity} />;
   };
@@ -155,6 +155,10 @@ export default function Dashboard() {
   const cardBaseStyle = {
     border: "1px solid #e2e8f0",
     boxShadow: "0 6px 24px rgba(15, 23, 42, 0.05)"
+  };
+
+  const nuevaFactura = () => {
+    window.location.href = "/facturacion-create";
   };
 
   return (
@@ -200,6 +204,8 @@ export default function Dashboard() {
               icon="pi pi-file-plus"
               className="w-full dashboard-action-btn"
               outlined
+              onClick={nuevaFactura}
+
             />
           </div>
 

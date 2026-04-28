@@ -28,7 +28,7 @@ export default function Topbar({ toggleSidebar, toggleTheme }: Props) {
         />
 
         <span style={{ fontWeight: 600 }}>
-          Sistema Administrativo
+          Sistema Administrativo - Ya Factura
         </span>
 
       </div>

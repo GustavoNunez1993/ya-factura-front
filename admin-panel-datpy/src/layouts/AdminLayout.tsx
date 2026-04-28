@@ -3,10 +3,6 @@ import { useState, useEffect } from "react";
 
 import Sidebar from "../components/Sidebar";
 import Topbar from "./Topbar";
-import BreadcrumbsNav from "../components/BreadcrumbsNav";
-
-const drawerWidth = 240;
-const miniWidth = 80;
 
 interface Props {
   toggleTheme: () => void;
@@ -56,19 +52,17 @@ export default function AdminLayout({ toggleTheme }: Props) {
           className="flex-1 overflow-auto"
           style={{
             background: "#f4f6f9",
-            padding: "24px"
+            padding: "16px"
           }}
         >
 
-          <div style={{ maxWidth: 1400, margin: "0 auto" }}>
-
-            <BreadcrumbsNav />
+          <div style={{ width: "100%", maxWidth: "100%", margin: "0 auto" }}>
 
             <div
               style={{
                 background: "#ffffff",
                 borderRadius: "10px",
-                padding: "24px",
+                padding: "20px",
                 border: "1px solid #e5e7eb",
                 boxShadow: "0 4px 12px rgba(0,0,0,0.05)"
               }}

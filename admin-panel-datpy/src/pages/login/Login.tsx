@@ -168,7 +168,7 @@ const handleSubmit = async () => {
           {/* LOGIN */}
 
           <Button
-            label="Login Now"
+            label="Ingresar"
             className="w-full"
             loading={loading}
             onClick={handleSubmit}

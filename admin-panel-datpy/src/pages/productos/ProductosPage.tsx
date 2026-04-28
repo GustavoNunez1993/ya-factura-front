@@ -166,53 +166,7 @@ export default function ProductosPage() {
             setUnidadMedidas([]);
         }
     };
-    const cargarCatalogosOld = async () => {
-        try {
-            //const [unidadesRes, marcasRes, subFamiliasRes, afectacionesRes] =
-            const [unidadesRes, marcasRes] =
 
-                await Promise.all([
-                    //UnidadMedidaService.getAll(),
-                    MarcaService.getAll(),
-                    SubFamiliaService.getAll(),
-                    // AfectacionIvaService.getAll()
-                ]);
-
-            /*  setUnidadMedidas(
-                  (unidadesRes ?? []).map((item: any) => ({
-                      id: item.id,
-                      descripcion: item.descripcion
-                  }))
-              );*/
-
-            setMarcas(
-                (marcasRes ?? []).map((item: any) => ({
-                    id: item.id,
-                    descripcion: item.descripcion
-                }))
-            );
-
-            /* setSubFamilias(
-                 (subFamiliasRes ?? []).map((item: any) => ({
-                     id: item.id,
-                     descripcion: item.descripcion
-                 }))
-             );*/
-
-            /*  setAfectacionesIva(
-                  (afectacionesRes ?? []).map((item: any) => ({
-                      id: item.id,
-                      descripcion: item.descripcion
-                  }))
-              );*/
-        } catch (error) {
-            console.error("Error cargando catálogos", error);
-            //setUnidadMedidas([]);
-            setMarcas([]);
-            setSubFamilias([]);
-            setAfectacionesIva([]);
-        }
-    };
 
     useEffect(() => {
         if (empresaId) {
@@ -585,7 +539,7 @@ export default function ProductosPage() {
                         <InputTextarea
                             className="w-full"
                             disabled={viewMode}
-                            value={form.observaciones}
+                            value={form.observaciones ?? undefined}
                             onChange={(e) =>
                                 setForm({ ...form, observaciones: e.target.value })
                             }

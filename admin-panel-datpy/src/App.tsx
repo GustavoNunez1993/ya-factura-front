@@ -7,6 +7,11 @@ import FamiliasPage from "./pages/familia/FamiliasPage";
 import SubFamiliasPage from "./pages/sub_familias/SubFamiliasPage";
 import ProductosPage from "./pages/productos/ProductosPage";
 import PersonasPage from "./pages/clientes/PersonasPage";
+import FacturacionPage from "./pages/facturacion/FacturacionPage";
+import FacturasListadoPage from "./pages/facturacion/FacturasListadoPage";
+import AperturaCajaPage from "./pages/caja/AperturaCajaPage";
+import CuentaCorrientePage from "./pages/cuenta_corriente/CuentaCorrientePage";
+import MantenimientoPage from "./pages/MantenimientoPage";
 
 interface Props {
   toggleTheme: () => void;
@@ -26,11 +31,22 @@ function App({ toggleTheme = () => {} }: Partial<Props>) {
           <Route path="/sub-familias" element={<SubFamiliasPage />} />
           <Route path="/productos" element={<ProductosPage />} />
           <Route path="/personas" element={<PersonasPage />} />
+          <Route path="/facturacion" element={<FacturasListadoPage />} />
+          <Route path="/facturacion-create" element={<FacturacionPage />} />
+          <Route path="/apertura-caja" element={<AperturaCajaPage />} />
+          <Route
+            path="/cuenta-corriente/clientes"
+            element={<CuentaCorrientePage tipo="clientes" />}
+          />
+          <Route
+            path="/cuenta-corriente/proveedores"
+            element={<CuentaCorrientePage tipo="proveedores" />}
+          />
           <Route path="/paises" element={<ProductosPage />} />
           <Route path="/departamentos" element={<ProductosPage />} />
           <Route path="/distritos" element={<ProductosPage />} />
           <Route path="/ciudades" element={<ProductosPage />} />
-
+          <Route path="*" element={<MantenimientoPage />} />
         </Route>
       </Routes>
     </BrowserRouter>
