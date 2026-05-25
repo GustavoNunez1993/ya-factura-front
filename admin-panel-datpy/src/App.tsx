@@ -8,6 +8,9 @@ import SubFamiliasPage from "./pages/sub_familias/SubFamiliasPage";
 import ProductosPage from "./pages/productos/ProductosPage";
 import PersonasPage from "./pages/clientes/PersonasPage";
 import FacturacionPage from "./pages/facturacion/FacturacionPage";
+import TallesPage from "./pages/talles/TallesPage";
+import ColoresPage from "./pages/colores/ColoresPage";
+import SeleccionProductoColorTallePage from "./pages/SeleccionProductoColorTallePage";
 import FacturasListadoPage from "./pages/facturacion/FacturasListadoPage";
 import AperturaCajaPage from "./pages/caja/AperturaCajaPage";
 import CuentaCorrientePage from "./pages/cuenta_corriente/CuentaCorrientePage";
@@ -29,6 +32,9 @@ function App({ toggleTheme = () => {} }: Partial<Props>) {
           <Route path="/marcas" element={<MarcasPage />} />
           <Route path="/familias" element={<FamiliasPage />} />
           <Route path="/sub-familias" element={<SubFamiliasPage />} />
+          <Route path="/talles" element={<TallesPage />} />
+          <Route path="/colores" element={<ColoresPage />} />
+          <Route path="/seleccion-producto" element={<SeleccionProductoColorTallePage />} />
           <Route path="/productos" element={<ProductosPage />} />
           <Route path="/personas" element={<PersonasPage />} />
           <Route path="/facturacion" element={<FacturasListadoPage />} />

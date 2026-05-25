@@ -167,6 +167,12 @@ export default function Sidebar({ collapsed }: Props) {
             onClick={() => navigate("/colores")}
           />
           <SubItem
+            icon="pi pi-check-square"
+            label="Selector Producto"
+            active={isActive("/seleccion-producto")}
+            onClick={() => navigate("/seleccion-producto")}
+          />
+          <SubItem
             icon="pi pi-hashtag"
             label="Talles"
             active={isActive("/talles")}
