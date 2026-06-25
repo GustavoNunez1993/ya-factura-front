@@ -10,6 +10,7 @@ import { DataTable } from "primereact/datatable";
 import { Column } from "primereact/column";
 
 import { ProductosService } from "../../services/ProductosService";
+import { useIsMobile } from "../../hooks/useIsMobile";
 import { UnidadMedidaService } from "../../services/UnidadMedidaService";
 import { MarcaService } from "../../services/MarcasService";
 import { SubFamiliaService } from "../../services/SubFamiliaService";
@@ -96,6 +97,7 @@ export default function ProductosPage() {
 
     const [form, setForm] = useState<Producto>(crearFormularioInicial());
     const [imagenesFiles, setImagenesFiles] = useState<File[]>([]);
+    const isMobile = useIsMobile();
 
     const opcionesIva = [
         { label: "Exento 0%", value: 0 },
@@ -372,7 +374,7 @@ export default function ProductosPage() {
 
     return (
         <div className="card">
-            <div className="flex justify-content-between align-items-center mb-3">
+            <div className="flex justify-content-between align-items-center mb-3" style={{ flexWrap: "wrap", gap: "10px" }}>
                 <div>
                     <h2 className="m-0">Productos</h2>
                     <small className="text-color-secondary">
@@ -388,10 +390,10 @@ export default function ProductosPage() {
                 />
             </div>
 
-            <span className="p-input-icon-left mb-3">
+            <div className="p-input-icon-left mb-3 w-full">
                 <i className="pi pi-search" />
-
                 <InputText
+                    className="w-full"
                     placeholder="Buscar producto..."
                     value={search}
                     onChange={(e) => {
@@ -399,76 +401,116 @@ export default function ProductosPage() {
                         setSearch(e.target.value);
                     }}
                 />
-            </span>
+            </div>
 
-            <DataTable
-                value={productos}
-                paginator
-                rows={size}
-                totalRecords={total}
-                lazy
-                size="small"
-                first={page * size}
-                onPage={(e) => setPage(e.page ?? 0)}
-                stripedRows
-                showGridlines
-                responsiveLayout="scroll"
-                emptyMessage="No existen productos registrados"
-                currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} productos"
-            >
-                <Column
-                    header="Imagen"
-                    body={imagenTemplate}
-                    style={{ width: "90px", textAlign: "center" }}
-                />
+            {isMobile ? (
+                <>
+                    {productos.length === 0 ? (
+                        <p style={{ textAlign: "center", color: "#9ca3af", padding: "24px 0" }}>No existen productos registrados</p>
+                    ) : productos.map((item) => {
+                        const principal = item.imagenes?.find((img: any) => img.esPrincipal) || item.imagenes?.[0];
+                        return (
+                            <div key={item.id} style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: "12px 14px", marginBottom: 8, background: "#fff" }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+                                    <div style={{ display: "flex", gap: 10, flex: 1 }}>
+                                        {principal?.urlImagen ? (
+                                            <img src={principal.urlImagen} alt="producto" style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 6, flexShrink: 0 }} />
+                                        ) : (
+                                            <div style={{ width: 48, height: 48, borderRadius: 6, background: "#f3f4f6", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                                                <i className="pi pi-image" style={{ color: "#9ca3af", fontSize: 20 }} />
+                                            </div>
+                                        )}
+                                        <div style={{ flex: 1 }}>
+                                            <div style={{ fontWeight: 600, fontSize: 14 }}>{item.descripcion}</div>
+                                            <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>Código: {item.codigo}</div>
+                                            <div style={{ fontSize: 12, color: "#374151", marginTop: 3 }}>
+                                                Precio: <strong>₲ {item.precioVenta?.toLocaleString()}</strong>
+                                                {item.porcentajeIva != null && <span style={{ marginLeft: 8 }}>IVA: {item.porcentajeIva}%</span>}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+                                        {estadoBodyTemplate(item)}
+                                        {accionesTemplate(item)}
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })}
+                    <div style={{ display: "flex", justifyContent: "center", gap: 8, marginTop: 12, alignItems: "center" }}>
+                        <Button icon="pi pi-angle-left" text size="small" disabled={page === 0} onClick={() => setPage(page - 1)} />
+                        <span style={{ fontSize: 13, color: "#6b7280" }}>Pág. {page + 1} de {Math.max(1, Math.ceil(total / size))}</span>
+                        <Button icon="pi pi-angle-right" text size="small" disabled={(page + 1) * size >= total} onClick={() => setPage(page + 1)} />
+                    </div>
+                </>
+            ) : (
+                <DataTable
+                    value={productos}
+                    paginator
+                    rows={size}
+                    totalRecords={total}
+                    lazy
+                    size="small"
+                    first={page * size}
+                    onPage={(e) => setPage(e.page ?? 0)}
+                    stripedRows
+                    showGridlines
+                    emptyMessage="No existen productos registrados"
+                    currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} productos"
+                >
+                    <Column
+                        header="Imagen"
+                        body={imagenTemplate}
+                        style={{ width: "90px", textAlign: "center" }}
+                    />
 
-                <Column
-                    field="codigo"
-                    header="Código"
-                    sortable
-                    style={{ width: "120px", textAlign: "center" }}
-                />
+                    <Column
+                        field="codigo"
+                        header="Código"
+                        sortable
+                        style={{ width: "120px", textAlign: "center" }}
+                    />
 
-                <Column field="descripcion" header="Descripción" sortable />
+                    <Column field="descripcion" header="Descripción" sortable />
 
-                <Column field="precioVenta" header="Precio Venta" sortable />
+                    <Column field="precioVenta" header="Precio Venta" sortable />
 
-                <Column
-                    field="porcentajeIva"
-                    header="IVA"
-                    style={{ width: "100px", textAlign: "center" }}
-                />
+                    <Column
+                        field="porcentajeIva"
+                        header="IVA"
+                        style={{ width: "100px", textAlign: "center" }}
+                    />
 
-                <Column
-                    field="marca"
-                    header="Marca"
-                    style={{ width: "100px", textAlign: "center" }}
-                />
-                <Column
-                    field="familia"
-                    header="Familia"
-                    style={{ width: "100px", textAlign: "center" }}
-                />
-                <Column
-                    field="subFamilia"
-                    header="Sub-Familia"
-                    style={{ width: "100px", textAlign: "center" }}
-                />
+                    <Column
+                        field="marca"
+                        header="Marca"
+                        style={{ width: "100px", textAlign: "center" }}
+                    />
+                    <Column
+                        field="familia"
+                        header="Familia"
+                        style={{ width: "100px", textAlign: "center" }}
+                    />
+                    <Column
+                        field="subFamilia"
+                        header="Sub-Familia"
+                        style={{ width: "100px", textAlign: "center" }}
+                    />
 
+                    <Column
+                        field="active"
+                        header="Estado"
+                        style={{ width: "120px", textAlign: "center" }}
+                        body={estadoBodyTemplate}
+                    />
 
-                <Column
-                    field="active"
-                    header="Estado"
-                    style={{ width: "120px", textAlign: "center" }}
-                    body={estadoBodyTemplate}
-                />
-
-                <Column
-                    header="Acciones"
-                    body={accionesTemplate}
-                    style={{ width: "140px" }}
-                />
-            </DataTable>
+                    <Column
+                        header="Acciones"
+                        body={accionesTemplate}
+                        style={{ width: "140px" }}
+                    />
+                </DataTable>
+            )}
 
             <Dialog
                 header={

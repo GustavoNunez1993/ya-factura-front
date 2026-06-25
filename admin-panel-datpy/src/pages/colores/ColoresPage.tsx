@@ -9,6 +9,7 @@ import { DataTable } from "primereact/datatable";
 import { Column } from "primereact/column";
 
 import { ColorService } from "../../services/ColorService";
+import { useIsMobile } from "../../hooks/useIsMobile";
 
 interface ColorItem {
   id?: string;
@@ -35,6 +36,8 @@ export default function ColoresPage() {
     descripcion: "",
     colorHex: "#2563eb"
   });
+
+  const isMobile = useIsMobile();
 
   const cargarColores = async () => {
     try {
@@ -162,7 +165,7 @@ export default function ColoresPage() {
 
   return (
     <div className="card">
-      <div className="flex justify-content-between align-items-center mb-3">
+      <div className="flex justify-content-between align-items-center mb-3" style={{ flexWrap: "wrap", gap: "10px" }}>
         <div>
           <h2 className="m-0">Colores</h2>
           <small className="text-color-secondary">
@@ -178,9 +181,10 @@ export default function ColoresPage() {
         />
       </div>
 
-      <span className="p-input-icon-left mb-3">
+      <div className="p-input-icon-left mb-3 w-full">
         <i className="pi pi-search" />
         <InputText
+          className="w-full"
           placeholder="Buscar Color..."
           value={search}
           onChange={(e) => {
@@ -188,45 +192,69 @@ export default function ColoresPage() {
             setSearch(e.target.value);
           }}
         />
-      </span>
+      </div>
 
-      <DataTable
-        value={colores}
-        paginator
-        rows={size}
-        totalRecords={total}
-        lazy
-        size="small"
-        first={page * size}
-        onPage={(e) => setPage(e.page ?? 0)}
-        stripedRows
-        showGridlines
-        responsiveLayout="scroll"
-        emptyMessage="No existen colores registrados"
-        currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} colores"
-      >
-        <Column
-          field="codigo"
-          header="Código"
-          sortable
-          style={{ width: "120px", textAlign: "center" }}
-        />
-        <Column
-          field="descripcion"
-          header="Descripción"
-          sortable
-        />
-        <Column
-          header="Color"
-          body={colorPreview}
-          style={{ width: "180px" }}
-        />
-        <Column
-          header="Acciones"
-          body={accionesTemplate}
-          style={{ width: "160px" }}
-        />
-      </DataTable>
+      {isMobile ? (
+        <>
+          {colores.length === 0 ? (
+            <p style={{ textAlign: "center", color: "#9ca3af", padding: "24px 0" }}>No existen colores registrados</p>
+          ) : colores.map((item) => (
+            <div key={item.id} style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: "12px 14px", marginBottom: 8, background: "#fff", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>{item.descripcion}</div>
+                <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2, display: "flex", alignItems: "center", gap: 8 }}>
+                  <span>Código: {item.codigo}</span>
+                  <span style={{ width: 16, height: 16, borderRadius: "50%", background: item.colorHex, border: "1px solid #d1d5db", display: "inline-block" }} />
+                  <span>{item.colorHex}</span>
+                </div>
+              </div>
+              {accionesTemplate(item)}
+            </div>
+          ))}
+          <div style={{ display: "flex", justifyContent: "center", gap: 8, marginTop: 12, alignItems: "center" }}>
+            <Button icon="pi pi-angle-left" text size="small" disabled={page === 0} onClick={() => setPage(page - 1)} />
+            <span style={{ fontSize: 13, color: "#6b7280" }}>Pág. {page + 1} de {Math.max(1, Math.ceil(total / size))}</span>
+            <Button icon="pi pi-angle-right" text size="small" disabled={(page + 1) * size >= total} onClick={() => setPage(page + 1)} />
+          </div>
+        </>
+      ) : (
+        <DataTable
+          value={colores}
+          paginator
+          rows={size}
+          totalRecords={total}
+          lazy
+          size="small"
+          first={page * size}
+          onPage={(e) => setPage(e.page ?? 0)}
+          stripedRows
+          showGridlines
+          emptyMessage="No existen colores registrados"
+          currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} colores"
+        >
+          <Column
+            field="codigo"
+            header="Código"
+            sortable
+            style={{ width: "120px", textAlign: "center" }}
+          />
+          <Column
+            field="descripcion"
+            header="Descripción"
+            sortable
+          />
+          <Column
+            header="Color"
+            body={colorPreview}
+            style={{ width: "180px" }}
+          />
+          <Column
+            header="Acciones"
+            body={accionesTemplate}
+            style={{ width: "160px" }}
+          />
+        </DataTable>
+      )}
 
       <Dialog
         header={

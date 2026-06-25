@@ -13,6 +13,7 @@ import { InputText } from "primereact/inputtext";
 import { PersonaService } from "../../services/PersonaService";
 import { ProductosService } from "../../services/ProductosService";
 import { FacturaService } from "../../services/FacturaService";
+import { abrirBoletaVenta } from "../../comprobantes/invoices";
 
 interface Persona {
   id: string;
@@ -20,6 +21,7 @@ interface Persona {
   ruc?: string;
   dv?: string;
   nroDocumento?: string;
+  direccion?: string;
 }
 
 interface Producto {
@@ -140,7 +142,7 @@ export default function FacturacionPage() {
   const [productoId, setProductoId] = useState<string | null>(null);
   const [productoSelectorKey, setProductoSelectorKey] = useState(0);
   const [cantidadInputKey, setCantidadInputKey] = useState(0);
-  const [cantidad, setCantidad] = useState<number>(1);
+  const [cantidad, setCantidad] = useState<number | null>(1);
   const [items, setItems] = useState<FacturaItem[]>([]);
   const [cobroVisible, setCobroVisible] = useState(false);
   const [pagos, setPagos] = useState<PagoItem[]>([]);
@@ -148,6 +150,13 @@ export default function FacturacionPage() {
   const [pagoMonto, setPagoMonto] = useState<number>(0);
   const [pagoReferencia, setPagoReferencia] = useState("");
   const cantidadInputRef = useRef<InputNumber>(null);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   const totalAbonar = useMemo(
     () => items.reduce((total, item) => total + item.exenta + item.iva5 + item.iva10, 0),
@@ -201,11 +210,35 @@ export default function FacturacionPage() {
   }, []);
 
   const clienteTemplate = (cliente: Persona) => {
+    if (!cliente) return null;
+
     const documento = cliente.ruc
       ? `${cliente.ruc}${cliente.dv ? "-" + cliente.dv : ""}`
       : cliente.nroDocumento;
 
-    return documento ? `${cliente.razonSocial} - ${documento}` : cliente.razonSocial;
+    return (
+      <div>
+        <div className="font-semibold">{cliente.razonSocial}</div>
+        {documento && (
+          <div className="text-sm text-color-secondary">RUC/Doc: {documento}</div>
+        )}
+      </div>
+    );
+  };
+
+  const clienteValueTemplate = (cliente: Persona) => {
+    if (!cliente) return "Seleccione cliente";
+
+    const documento = cliente.ruc
+      ? `${cliente.ruc}${cliente.dv ? "-" + cliente.dv : ""}`
+      : cliente.nroDocumento;
+
+    return (
+      <span>
+        {cliente.razonSocial}
+        {documento ? ` - ${documento}` : ""}
+      </span>
+    );
   };
 
   const productoTemplate = (producto: Producto) => {
@@ -325,7 +358,7 @@ export default function FacturacionPage() {
       setItems((prev) => {
         const itemActualizado = recalcularItem({
           ...itemExistente,
-          cantidad: itemExistente.cantidad + cantidad
+          cantidad: itemExistente.cantidad + (cantidad ?? 1)
         });
 
         return [
@@ -466,247 +499,73 @@ export default function FacturacionPage() {
     />
   );
 
-  const escapeHtml = (value: string | number | null | undefined) =>
-    String(value ?? "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#039;");
-
   const formaPagoLabel = (value: string) =>
     formasPago.find((forma) => forma.value === value)?.label ?? value;
 
   const formaPagoTablaBody = (rowData: PagoItem) => formaPagoLabel(rowData.formaPago);
   const montoPagoTablaBody = (rowData: PagoItem) => formatMoney(rowData.monto, moneda);
   const referenciaPagoTablaBody = (rowData: PagoItem) => rowData.referencia || "-";
-
-  const generarBoletaHtml = () => {
-    const cliente = clientes.find((item) => item.id === clienteId);
-    const condicion = condicionesVenta.find((item) => item.value === condicionVenta)?.label ?? condicionVenta;
-    const clienteDocumento = cliente?.ruc
-      ? `${cliente.ruc}${cliente.dv ? "-" + cliente.dv : ""}`
-      : cliente?.nroDocumento ?? "-";
-
-    const itemsRows = items
-      .map((item) => {
-        const subtotal = item.exenta + item.iva5 + item.iva10;
-
-        return `
-          <tr>
-            <td>${escapeHtml(item.codigo)}</td>
-            <td class="number">${escapeHtml(item.cantidad)}</td>
-            <td>${escapeHtml(item.descripcion)}</td>
-            <td class="number">${escapeHtml(formatMoney(item.precioUnitario, moneda))}</td>
-            <td class="number">${escapeHtml(formatMoney(item.exenta, moneda))}</td>
-            <td class="number">${escapeHtml(formatMoney(item.iva5, moneda))}</td>
-            <td class="number">${escapeHtml(formatMoney(item.iva10, moneda))}</td>
-            <td class="number">${escapeHtml(formatMoney(subtotal, moneda))}</td>
-          </tr>
-        `;
-      })
-      .join("");
-
-    const pagosRows = pagos
-      .map((pago) => `
-        <tr>
-          <td>${escapeHtml(formaPagoLabel(pago.formaPago))}</td>
-          <td>${escapeHtml(pago.referencia || "-")}</td>
-          <td class="number">${escapeHtml(formatMoney(pago.monto, moneda))}</td>
-        </tr>
-      `)
-      .join("");
-
-    return `
-      <!doctype html>
-      <html>
-        <head>
-          <meta charset="utf-8" />
-          <title>Boleta de venta</title>
-          <style>
-            * { box-sizing: border-box; }
-            body {
-              margin: 0;
-              padding: 24px;
-              color: #111827;
-              font-family: Arial, sans-serif;
-              font-size: 12px;
-            }
-            .receipt {
-              max-width: 920px;
-              margin: 0 auto;
-            }
-            .header {
-              display: flex;
-              justify-content: space-between;
-              gap: 24px;
-              border-bottom: 2px solid #111827;
-              padding-bottom: 12px;
-              margin-bottom: 16px;
-            }
-            .brand {
-              font-size: 22px;
-              font-weight: 700;
-            }
-            .doc-title {
-              text-align: right;
-              font-size: 18px;
-              font-weight: 700;
-            }
-            .muted { color: #4b5563; }
-            .info-grid {
-              display: grid;
-              grid-template-columns: repeat(2, minmax(0, 1fr));
-              gap: 6px 24px;
-              margin-bottom: 16px;
-            }
-            .section-title {
-              font-size: 13px;
-              font-weight: 700;
-              margin: 16px 0 6px;
-            }
-            table {
-              width: 100%;
-              border-collapse: collapse;
-            }
-            th, td {
-              border-bottom: 1px solid #d1d5db;
-              padding: 6px;
-              vertical-align: top;
-            }
-            th {
-              background: #f3f4f6;
-              text-align: left;
-              font-weight: 700;
-            }
-            .number {
-              text-align: right;
-              white-space: nowrap;
-            }
-            .totals {
-              display: grid;
-              grid-template-columns: 1fr 260px;
-              gap: 24px;
-              margin-top: 16px;
-            }
-            .summary-row {
-              display: flex;
-              justify-content: space-between;
-              gap: 12px;
-              padding: 5px 0;
-              border-bottom: 1px solid #e5e7eb;
-            }
-            .grand-total {
-              font-size: 18px;
-              font-weight: 700;
-              border-bottom: 0;
-              padding-top: 10px;
-            }
-            .footer {
-              margin-top: 24px;
-              text-align: center;
-              color: #4b5563;
-            }
-            @media print {
-              body { padding: 0; }
-              .receipt { max-width: none; }
-            }
-          </style>
-        </head>
-        <body>
-          <div class="receipt">
-            <div class="header">
-              <div>
-                <div class="brand">Ya Factura</div>
-                <div class="muted">Sistema Administrativo</div>
-                <div class="muted">Punto de expedición: ${escapeHtml(puntoExpedicion || "-")}</div>
-              </div>
-              <div>
-                <div class="doc-title">BOLETA DE VENTA</div>
-                <div class="muted">Fecha: ${escapeHtml(fecha.toLocaleDateString("es-PY"))}</div>
-                <div class="muted">Condición: ${escapeHtml(condicion)}</div>
-                <div class="muted">Moneda: ${escapeHtml(moneda)}</div>
-              </div>
-            </div>
-
-            <div class="info-grid">
-              <div><strong>Cliente:</strong> ${escapeHtml(cliente?.razonSocial ?? "-")}</div>
-              <div><strong>Documento:</strong> ${escapeHtml(clienteDocumento)}</div>
-              <div><strong>Ítems:</strong> ${escapeHtml(items.length)}</div>
-              <div><strong>Total pagado:</strong> ${escapeHtml(formatMoney(totalPagado, moneda))}</div>
-            </div>
-
-            <div class="section-title">Detalle de productos</div>
-            <table>
-              <thead>
-                <tr>
-                  <th>Código</th>
-                  <th class="number">Cant.</th>
-                  <th>Descripción</th>
-                  <th class="number">Precio</th>
-                  <th class="number">Exenta</th>
-                  <th class="number">IVA 5</th>
-                  <th class="number">IVA 10</th>
-                  <th class="number">Subtotal</th>
-                </tr>
-              </thead>
-              <tbody>${itemsRows}</tbody>
-            </table>
-
-            <div class="totals">
-              <div>
-                <div class="section-title">Formas de pago</div>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Forma</th>
-                      <th>Referencia</th>
-                      <th class="number">Monto</th>
-                    </tr>
-                  </thead>
-                  <tbody>${pagosRows}</tbody>
-                </table>
-              </div>
-
-              <div>
-                <div class="section-title">Totales</div>
-                <div class="summary-row"><span>Exenta</span><strong>${escapeHtml(formatMoney(resumen.totalExenta, moneda))}</strong></div>
-                <div class="summary-row"><span>Subtotal IVA 5</span><strong>${escapeHtml(formatMoney(resumen.subtotalIva5, moneda))}</strong></div>
-                <div class="summary-row"><span>Subtotal IVA 10</span><strong>${escapeHtml(formatMoney(resumen.subtotalIva10, moneda))}</strong></div>
-                <div class="summary-row"><span>IVA 5</span><strong>${escapeHtml(formatMoney(resumen.liquidacionIva5, moneda))}</strong></div>
-                <div class="summary-row"><span>IVA 10</span><strong>${escapeHtml(formatMoney(resumen.liquidacionIva10, moneda))}</strong></div>
-                <div class="summary-row"><span>Total IVA</span><strong>${escapeHtml(formatMoney(resumen.totalIva, moneda))}</strong></div>
-                <div class="summary-row grand-total"><span>Total</span><strong>${escapeHtml(formatMoney(totalAbonar, moneda))}</strong></div>
-                <div class="summary-row"><span>Vuelto</span><strong>${escapeHtml(formatMoney(vuelto, moneda))}</strong></div>
-              </div>
-            </div>
-
-            <div class="footer">Gracias por su compra</div>
-          </div>
-
-          <script>
-            window.addEventListener("load", () => {
-              window.focus();
-              window.print();
-            });
-          </script>
-        </body>
-      </html>
-    `;
+  const vueltoTablaBody = (rowData: PagoItem, options: { rowIndex: number }) => {
+    const esUltimo = options.rowIndex === pagos.length - 1;
+    if (esUltimo && vuelto > 0 && rowData.formaPago === "EFECTIVO") {
+      return <span className="text-orange-500 font-semibold">{formatMoney(vuelto, moneda)}</span>;
+    }
+    return <span className="text-color-secondary">-</span>;
   };
 
-  const abrirBoletaImprimible = () => {
-    const popup = window.open("", "_blank");
+  const abrirBoletaImprimible = async (dNumDocReal?: string, facturaRes?: any) => {
+    const cliente = clientes.find((item) => item.id === clienteId);
+    const condicionLabel = condicionesVenta.find((item) => item.value === condicionVenta)?.label ?? condicionVenta;
 
-    if (!popup) {
-      Swal.fire("Atención", "El navegador bloqueó la pestaña de impresión", "warning");
-      return false;
-    }
+    const clienteRazonSocial = facturaRes?.dNomRec ?? cliente?.razonSocial ?? "-";
+    const clienteDireccion   = facturaRes?.dDirRec ?? cliente?.direccion ?? "";
+    const clienteDocumento   = facturaRes?.dRucRec
+      ? `${facturaRes.dRucRec}${facturaRes.dDVRec ? "-" + facturaRes.dDVRec : ""}`
+      : (cliente?.ruc
+          ? `${cliente.ruc}${cliente.dv ? "-" + cliente.dv : ""}`
+          : (cliente?.nroDocumento || "-"));
 
-    popup.document.open();
-    popup.document.write(generarBoletaHtml());
-    popup.document.close();
-    return true;
+    const parts = (puntoExpedicion || "").split("-");
+    const est  = /^\d+$/.test(parts[0] ?? "") ? parts[0] : "001";
+    const pexp = /^\d+$/.test(parts[1] ?? "") ? parts[1] : "001";
+    const puntoDisplay = `${est}-${pexp}`;
+    const nroDoc = `${puntoDisplay}-${(dNumDocReal ?? "0000001").padStart(7, "0")}`;
+
+    abrirBoletaVenta({
+      puntoExpedicion: puntoDisplay,
+      nroDoc,
+      fecha,
+      moneda,
+      condicionVenta,
+      condicionLabel,
+      clienteRazonSocial,
+      clienteDocumento,
+      clienteDireccion,
+      items: items.map((item) => ({
+        codigo: item.codigo,
+        descripcion: item.descripcion,
+        cantidad: item.cantidad,
+        precioUnitario: item.precioUnitario,
+        exenta: item.exenta,
+        iva5: item.iva5,
+        iva10: item.iva10,
+      })),
+      pagos: pagos.map((pago) => ({
+        formaPago: pago.formaPago,
+        referencia: pago.referencia || "",
+        monto: pago.monto,
+      })),
+      resumen: {
+        totalExenta: resumen.totalExenta,
+        subtotalIva5: resumen.subtotalIva5,
+        subtotalIva10: resumen.subtotalIva10,
+        liquidacionIva5: resumen.liquidacionIva5,
+        liquidacionIva10: resumen.liquidacionIva10,
+        totalIva: resumen.totalIva,
+      },
+      totalAbonar,
+      vuelto,
+    });
   };
 
   const limpiarFacturacion = () => {
@@ -854,20 +713,29 @@ const crearFacturaPayload = () => {
       };
     }),
 
-    pagos: pagos.map((pago) => ({
-      formaPago: pago.formaPago,
-      monto: pago.monto,
-      referencia: pago.referencia,
+    pagos: pagos.map((pago, index) => {
+      const esUltimoPago = index === pagos.length - 1;
+      const pagoVuelto =
+        esUltimoPago && vuelto > 0 && pago.formaPago === "EFECTIVO"
+          ? vuelto
+          : 0;
 
-      idTipo: obtenerTipoPagoId(pago.formaPago),
-      codigoBanco: null,
-      codigoTipoCheque: null,
-      vencimientoCheque: null,
-      codTipoTarjeta: null,
+      return {
+        formaPago: pago.formaPago,
+        monto: pago.monto,
+        vuelto: pagoVuelto,
+        referencia: pago.referencia,
 
-      codigoMoneda: moneda,
-      codigoCotizacion: cotizaciones[moneda] ?? 1
-    }))
+        idTipo: obtenerTipoPagoId(pago.formaPago),
+        codigoBanco: null,
+        codigoTipoCheque: null,
+        vencimientoCheque: null,
+        codTipoTarjeta: null,
+
+        codigoMoneda: moneda,
+        codigoCotizacion: cotizaciones[moneda] ?? 1
+      };
+    })
   };
 };
 
@@ -887,11 +755,9 @@ const confirmarCobro = async () => {
 
     console.log("PAYLOAD FACTURA", payload);
 
-    await FacturaService.create(payload);
+    const facturaCreada = await FacturaService.create(payload);
 
-    const boletaAbierta = abrirBoletaImprimible();
-
-    if (!boletaAbierta) return;
+    await abrirBoletaImprimible(facturaCreada?.dNumDoc ?? facturaCreada?.dnumDoc, facturaCreada);
 
     Swal.fire("Cobro registrado", "La venta quedó registrada correctamente", "success");
     setCobroVisible(false);
@@ -945,6 +811,7 @@ const confirmarCobro = async () => {
 
           .facturacion-summary {
             display: grid;
+            grid-template-columns: repeat(2, 1fr);
             gap: .65rem;
           }
 
@@ -960,7 +827,8 @@ const confirmarCobro = async () => {
           }
 
           .facturacion-table .p-datatable-wrapper {
-            overflow: auto;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
           }
 
           .facturacion-summary-panel {
@@ -976,6 +844,10 @@ const confirmarCobro = async () => {
             border-top: 1px solid #e5e7eb;
             margin-top: .75rem;
             padding-top: .75rem;
+          }
+
+          .facturacion-summary-total > * + * {
+            margin-top: .4rem;
           }
 
           .factura-product-option {
@@ -1003,17 +875,8 @@ const confirmarCobro = async () => {
             background: #f8fafc;
           }
 
-          @media (max-width: 760px) {
-            .facturacion-cobro-totales {
-              grid-template-columns: repeat(2, minmax(0, 1fr));
-            }
-
-            .facturacion-pago-form {
-              grid-template-columns: 1fr;
-            }
-          }
-
-          @media (max-width: 1100px) {
+          /* Tablet portrait — collapsar detail layout */
+          @media (max-width: 1024px) {
             .facturacion-detail-layout {
               grid-template-columns: 1fr;
             }
@@ -1021,6 +884,124 @@ const confirmarCobro = async () => {
             .facturacion-summary-panel {
               position: static;
             }
+
+            .facturacion-summary {
+              grid-template-columns: repeat(3, 1fr);
+            }
+          }
+
+          /* Mobile landscape / small tablet */
+          @media (max-width: 768px) {
+            .facturacion-cobro-totales {
+              grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .facturacion-pago-form {
+              grid-template-columns: 1fr 1fr;
+            }
+
+            .facturacion-pago-form > *:last-child {
+              grid-column: 1 / -1;
+            }
+
+            .facturacion-summary {
+              grid-template-columns: repeat(3, 1fr);
+            }
+          }
+
+          /* Mobile */
+          @media (max-width: 480px) {
+            .facturacion-cobro-totales {
+              grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .facturacion-pago-form {
+              grid-template-columns: 1fr;
+            }
+
+            .facturacion-summary {
+              grid-template-columns: repeat(2, 1fr);
+            }
+          }
+
+          /* Item cards (mobile) */
+          .factura-item-card {
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 12px;
+            background: #fff;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+          }
+
+          .factura-item-card + .factura-item-card {
+            margin-top: 8px;
+          }
+
+          .factura-item-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 8px;
+          }
+
+          .factura-item-card-title {
+            font-weight: 600;
+            font-size: 14px;
+            line-height: 1.3;
+          }
+
+          .factura-item-card-code {
+            font-size: 12px;
+            color: #6b7280;
+            margin-top: 2px;
+          }
+
+          .factura-item-card-inputs {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+          }
+
+          .factura-item-card-inputs label {
+            display: block;
+            font-size: 11px;
+            color: #6b7280;
+            margin-bottom: 3px;
+          }
+
+          .factura-item-card-totals {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 4px;
+            background: #f8fafc;
+            border-radius: 6px;
+            padding: 8px;
+          }
+
+          .factura-item-card-total-cell {
+            text-align: center;
+          }
+
+          .factura-item-card-total-cell .cell-label {
+            font-size: 10px;
+            color: #9ca3af;
+          }
+
+          .factura-item-card-total-cell .cell-value {
+            font-size: 12px;
+            font-weight: 600;
+            color: #111827;
+          }
+
+          .factura-items-empty {
+            text-align: center;
+            padding: 32px 16px;
+            color: #9ca3af;
+            font-size: 13px;
+            border: 1px dashed #d1d5db;
+            border-radius: 8px;
           }
         `}
       </style>
@@ -1031,7 +1012,7 @@ const confirmarCobro = async () => {
       </div>
 
       <div className="grid">
-        <div className="col-12 md:col-4">
+        <div className="col-12 sm:col-12 md:col-4">
           <label>Cliente</label>
           <Dropdown
             className="w-full"
@@ -1040,7 +1021,7 @@ const confirmarCobro = async () => {
             optionLabel="razonSocial"
             optionValue="id"
             itemTemplate={clienteTemplate}
-            valueTemplate={(cliente) => (cliente ? clienteTemplate(cliente) : "Seleccione cliente")}
+            valueTemplate={clienteValueTemplate}
             placeholder="Seleccione cliente"
             filter
             showClear
@@ -1048,7 +1029,7 @@ const confirmarCobro = async () => {
           />
         </div>
 
-        <div className="col-12 md:col-2">
+        <div className="col-6 sm:col-6 md:col-2">
           <label>Fecha</label>
           <Calendar
             className="w-full"
@@ -1062,7 +1043,7 @@ const confirmarCobro = async () => {
           />
         </div>
 
-        <div className="col-12 md:col-2">
+        <div className="col-6 sm:col-6 md:col-2">
           <label>Condición</label>
           <Dropdown
             className="w-full"
@@ -1072,7 +1053,7 @@ const confirmarCobro = async () => {
           />
         </div>
 
-        <div className="col-12 md:col-2">
+        <div className="col-6 sm:col-6 md:col-2">
           <label>Moneda</label>
           <Dropdown
             className="w-full"
@@ -1082,7 +1063,7 @@ const confirmarCobro = async () => {
           />
         </div>
 
-        <div className="col-12 md:col-2">
+        <div className="col-6 sm:col-6 md:col-2">
           <label>Punto de expedición</label>
           <InputText
             className="w-full"
@@ -1094,7 +1075,7 @@ const confirmarCobro = async () => {
       </div>
 
       <div className="grid align-items-end mt-2">
-        <div className="col-12 md:col-7">
+        <div className="col-12 sm:col-12 md:col-7">
           <label>Producto</label>
           <Dropdown
             key={productoSelectorKey}
@@ -1120,7 +1101,7 @@ const confirmarCobro = async () => {
           />
         </div>
 
-        <div className="col-12 md:col-2">
+        <div className="col-5 sm:col-4 md:col-2">
           <label>Cantidad</label>
           <InputNumber
             key={cantidadInputKey}
@@ -1131,7 +1112,7 @@ const confirmarCobro = async () => {
             min={1}
             minFractionDigits={0}
             maxFractionDigits={3}
-            onValueChange={(e) => setCantidad(e.value ?? 1)}
+            onValueChange={(e) => setCantidad(e.value ?? null)}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault();
@@ -1141,7 +1122,7 @@ const confirmarCobro = async () => {
           />
         </div>
 
-        <div className="col-12 md:col-3">
+        <div className="col-7 sm:col-8 md:col-3">
           <Button
             className="w-full"
             icon="pi pi-plus"
@@ -1153,24 +1134,94 @@ const confirmarCobro = async () => {
 
       <div className="facturacion-detail-layout mt-4">
         <div className="facturacion-table-wrap">
-          <DataTable
-            value={items}
-            className="facturacion-table"
-            size="small"
-            stripedRows
-            scrollable
-            scrollHeight={tableScrollHeight}
-            emptyMessage="No hay productos cargados"
-          >
-            <Column field="codigo" header="Código" />
-            <Column header="Cantidad" body={cantidadBody} style={{ width: "96px" }} />
-            <Column field="descripcion" header="Descripción producto" />
-            <Column header="Precio unitario" body={precioUnitarioBody} style={{ width: "152px" }} />
-            <Column header="Exenta" body={moneyBody("exenta")} />
-            <Column header="IVA 5" body={moneyBody("iva5")} />
-            <Column header="IVA 10" body={moneyBody("iva10")} />
-            <Column body={accionesBody} style={{ width: "70px" }} />
-          </DataTable>
+          {isMobile ? (
+            items.length === 0 ? (
+              <div className="factura-items-empty">No hay productos cargados</div>
+            ) : (
+              <div>
+                {items.map((item) => (
+                  <div key={item.id} className="factura-item-card">
+                    <div className="factura-item-card-header">
+                      <div>
+                        <div className="factura-item-card-title">{item.descripcion}</div>
+                        <div className="factura-item-card-code">Código: {item.codigo}</div>
+                      </div>
+                      <Button
+                        icon="pi pi-trash"
+                        severity="danger"
+                        text
+                        rounded
+                        onClick={() => eliminarItem(item.id)}
+                      />
+                    </div>
+
+                    <div className="factura-item-card-inputs">
+                      <div>
+                        <label>Cantidad</label>
+                        <InputNumber
+                          className="factura-table-input w-full"
+                          inputClassName="w-full"
+                          value={item.cantidad}
+                          min={0.001}
+                          minFractionDigits={0}
+                          maxFractionDigits={3}
+                          onValueChange={(e) => actualizarItem(item.id, "cantidad", e.value ?? null)}
+                        />
+                      </div>
+                      <div>
+                        <label>Precio unitario</label>
+                        <InputNumber
+                          className="factura-table-input w-full"
+                          inputClassName="w-full"
+                          value={item.precioUnitario}
+                          min={0}
+                          locale="es-PY"
+                          prefix={monedaPrefix(moneda)}
+                          minFractionDigits={moneda === "PYG" ? 0 : 2}
+                          maxFractionDigits={moneda === "PYG" ? 0 : 2}
+                          onValueChange={(e) => actualizarItem(item.id, "precioUnitario", e.value ?? null)}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="factura-item-card-totals">
+                      <div className="factura-item-card-total-cell">
+                        <div className="cell-label">Exenta</div>
+                        <div className="cell-value">{formatMoney(item.exenta, moneda)}</div>
+                      </div>
+                      <div className="factura-item-card-total-cell">
+                        <div className="cell-label">IVA 5</div>
+                        <div className="cell-value">{formatMoney(item.iva5, moneda)}</div>
+                      </div>
+                      <div className="factura-item-card-total-cell">
+                        <div className="cell-label">IVA 10</div>
+                        <div className="cell-value">{formatMoney(item.iva10, moneda)}</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
+          ) : (
+            <DataTable
+              value={items}
+              className="facturacion-table"
+              size="small"
+              stripedRows
+              scrollable
+              scrollHeight={tableScrollHeight}
+              emptyMessage="No hay productos cargados"
+            >
+              <Column field="codigo" header="Código" />
+              <Column header="Cantidad" body={cantidadBody} style={{ width: "96px" }} />
+              <Column field="descripcion" header="Descripción producto" />
+              <Column header="Precio unitario" body={precioUnitarioBody} style={{ width: "152px" }} />
+              <Column header="Exenta" body={moneyBody("exenta")} />
+              <Column header="IVA 5" body={moneyBody("iva5")} />
+              <Column header="IVA 10" body={moneyBody("iva10")} />
+              <Column body={accionesBody} style={{ width: "70px" }} />
+            </DataTable>
+          )}
         </div>
 
         <aside className="facturacion-summary-panel">
@@ -1186,8 +1237,10 @@ const confirmarCobro = async () => {
           </div>
 
           <div className="facturacion-summary-total">
-            <ResumenMonto label="Ítems registrados" value={items.length.toString()} destacado />
-            <ResumenMonto label="Total a abonar" value={formatMoney(totalAbonar, moneda)} destacado />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: ".4rem" }}>
+              <ResumenMonto label="Ítems registrados" value={items.length.toString()} destacado />
+              <ResumenMonto label="Total a abonar" value={formatMoney(totalAbonar, moneda)} destacado />
+            </div>
           </div>
 
           <Button
@@ -1263,16 +1316,62 @@ const confirmarCobro = async () => {
 
         <div className="font-semibold mb-2">Pagos agregados</div>
 
-        <DataTable
-          value={pagos}
-          size="small"
-          emptyMessage="No hay formas de pago cargadas"
-        >
-          <Column header="Forma de pago" body={formaPagoTablaBody} style={{ minWidth: "180px" }} />
-          <Column header="Monto" body={montoPagoTablaBody} style={{ minWidth: "160px" }} />
-          <Column header="Referencia" body={referenciaPagoTablaBody} />
-          <Column body={accionesPagoBody} style={{ width: "70px" }} />
-        </DataTable>
+        {isMobile ? (
+          pagos.length === 0 ? (
+            <div className="factura-items-empty">No hay formas de pago cargadas</div>
+          ) : (
+            <div>
+              {pagos.map((pago, index) => {
+                const esUltimo = index === pagos.length - 1;
+                const pagoVuelto = esUltimo && vuelto > 0 && pago.formaPago === "EFECTIVO" ? vuelto : 0;
+                return (
+                  <div key={pago.id} className="factura-item-card">
+                    <div className="factura-item-card-header">
+                      <div>
+                        <div className="factura-item-card-title">{formaPagoLabel(pago.formaPago)}</div>
+                        {pago.referencia && (
+                          <div className="factura-item-card-code">Ref: {pago.referencia}</div>
+                        )}
+                      </div>
+                      <Button
+                        icon="pi pi-trash"
+                        severity="danger"
+                        text
+                        rounded
+                        onClick={() => eliminarPago(pago.id)}
+                      />
+                    </div>
+
+                    <div className="factura-item-card-totals">
+                      <div className="factura-item-card-total-cell" style={{ gridColumn: pagoVuelto > 0 ? "1" : "1 / -1" }}>
+                        <div className="cell-label">Monto</div>
+                        <div className="cell-value">{formatMoney(pago.monto, moneda)}</div>
+                      </div>
+                      {pagoVuelto > 0 && (
+                        <div className="factura-item-card-total-cell" style={{ gridColumn: "2 / -1" }}>
+                          <div className="cell-label">Vuelto</div>
+                          <div className="cell-value" style={{ color: "#f97316" }}>{formatMoney(pagoVuelto, moneda)}</div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )
+        ) : (
+          <DataTable
+            value={pagos}
+            size="small"
+            emptyMessage="No hay formas de pago cargadas"
+          >
+            <Column header="Forma de pago" body={formaPagoTablaBody} style={{ minWidth: "180px" }} />
+            <Column header="Monto" body={montoPagoTablaBody} style={{ minWidth: "160px" }} />
+            <Column header="Vuelto" body={vueltoTablaBody} style={{ minWidth: "140px" }} />
+            <Column header="Referencia" body={referenciaPagoTablaBody} />
+            <Column body={accionesPagoBody} style={{ width: "70px" }} />
+          </DataTable>
+        )}
       </Dialog>
     </div>
   );

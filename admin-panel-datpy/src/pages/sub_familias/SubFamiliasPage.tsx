@@ -11,6 +11,7 @@ import { Dropdown } from "primereact/dropdown";
 
 import { SubFamiliaService } from "../../services/SubFamiliaService";
 import { FamiliaService } from "../../services/FamiliaService";
+import { useIsMobile } from "../../hooks/useIsMobile";
 
 interface Familia {
   id: string;
@@ -44,6 +45,8 @@ export default function SubFamiliasPage() {
     codigo: "",
     descripcion: ""
   });
+
+  const isMobile = useIsMobile();
 
   const cargarSubFamilias = async () => {
 
@@ -243,78 +246,85 @@ export default function SubFamiliasPage() {
 
     <div className="card">
 
-      <div className="flex justify-content-between align-items-center mb-3">
-
+      <div className="flex justify-content-between align-items-center mb-3" style={{ flexWrap: "wrap", gap: "10px" }}>
         <div>
-
           <h2 className="m-0">Sub Familias</h2>
-
-          <small className="text-color-secondary">
-            Catálogo de sub familias
-          </small>
-
+          <small className="text-color-secondary">Catálogo de sub familias</small>
         </div>
-
-        <Button
-          label="Nueva SubFamilia"
-          icon="pi pi-plus"
-          severity="success"
-          onClick={abrirNuevo}
-        />
-
+        <Button label="Nueva SubFamilia" icon="pi pi-plus" severity="success" onClick={abrirNuevo} />
       </div>
 
-      <span className="p-input-icon-left mb-3">
-
+      <div className="p-input-icon-left mb-3 w-full">
         <i className="pi pi-search" />
-
         <InputText
+          className="w-full"
           placeholder="Buscar..."
           value={search}
-          onChange={(e) => {
-            setPage(0);
-            setSearch(e.target.value);
-          }}
+          onChange={(e) => { setPage(0); setSearch(e.target.value); }}
         />
+      </div>
 
-      </span>
+      {isMobile ? (
+        <>
+          {subFamilias.length === 0 ? (
+            <p style={{ textAlign: "center", color: "#9ca3af", padding: "24px 0" }}>No existen sub familias registradas</p>
+          ) : subFamilias.map((item) => (
+            <div key={item.id} style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: "12px 14px", marginBottom: 8, background: "#fff", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>{item.descripcion}</div>
+                <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>
+                  <span>Código: {item.codigo}</span>
+                  {item.familia?.descripcion && (
+                    <span style={{ marginLeft: 8 }}>Familia: {item.familia.descripcion}</span>
+                  )}
+                </div>
+              </div>
+              {accionesTemplate(item)}
+            </div>
+          ))}
+          <div style={{ display: "flex", justifyContent: "center", gap: 8, marginTop: 12, alignItems: "center" }}>
+            <Button icon="pi pi-angle-left" text size="small" disabled={page === 0} onClick={() => setPage(page - 1)} />
+            <span style={{ fontSize: 13, color: "#6b7280" }}>Pág. {page + 1} de {Math.max(1, Math.ceil(total / size))}</span>
+            <Button icon="pi pi-angle-right" text size="small" disabled={(page + 1) * size >= total} onClick={() => setPage(page + 1)} />
+          </div>
+        </>
+      ) : (
+        <DataTable
+          value={subFamilias}
+          paginator
+          rows={size}
+          totalRecords={total}
+          lazy
+          first={page * size}
+          onPage={(e) => setPage(e.page ?? 0)}
+          stripedRows
+          showGridlines
+        >
 
-      <DataTable
-        value={subFamilias}
-        paginator
-        rows={size}
-        totalRecords={total}
-        lazy
-        first={page * size}
-        onPage={(e) => setPage(e.page ?? 0)}
-        stripedRows
-        showGridlines
-        responsiveLayout="scroll"
-      >
+          <Column
+            field="codigo"
+            header="Código"
+            style={{ width: "120px", textAlign: "center" }}
+          />
 
-        <Column
-          field="codigo"
-          header="Código"
-          style={{ width: "120px", textAlign: "center" }}
-        />
+          <Column
+            field="descripcion"
+            header="Descripción"
+          />
 
-        <Column
-          field="descripcion"
-          header="Descripción"
-        />
+          <Column
+            field="familia.descripcion"
+            header="Familia"
+          />
 
-        <Column
-          field="familia.descripcion"
-          header="Familia"
-        />
+          <Column
+            header="Acciones"
+            body={accionesTemplate}
+            style={{ width: "140px" }}
+          />
 
-        <Column
-          header="Acciones"
-          body={accionesTemplate}
-          style={{ width: "140px" }}
-        />
-
-      </DataTable>
+        </DataTable>
+      )}
 
       <Dialog
         header={

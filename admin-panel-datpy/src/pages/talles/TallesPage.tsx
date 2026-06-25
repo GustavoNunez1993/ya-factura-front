@@ -9,6 +9,7 @@ import { DataTable } from "primereact/datatable";
 import { Column } from "primereact/column";
 
 import { TalleService } from "../../services/TalleService";
+import { useIsMobile } from "../../hooks/useIsMobile";
 
 interface Talle {
   id?: string;
@@ -33,6 +34,8 @@ export default function TallesPage() {
     codigo: "",
     descripcion: ""
   });
+
+  const isMobile = useIsMobile();
 
   const cargarTalles = async () => {
     try {
@@ -143,66 +146,78 @@ export default function TallesPage() {
 
   return (
     <div className="card">
-      <div className="flex justify-content-between align-items-center mb-3">
+      <div className="flex justify-content-between align-items-center mb-3" style={{ flexWrap: "wrap", gap: "10px" }}>
         <div>
           <h2 className="m-0">Talles</h2>
-          <small className="text-color-secondary">
-            Catálogo de talles de productos
-          </small>
+          <small className="text-color-secondary">Catálogo de talles de productos</small>
         </div>
+        <Button label="Nuevo Talle" icon="pi pi-plus" severity="success" onClick={abrirNuevo} />
+      </div>
 
-        <Button
-          label="Nuevo Talle"
-          icon="pi pi-plus"
-          severity="success"
-          onClick={abrirNuevo}
+      <div className="p-input-icon-left mb-3 w-full">
+        <i className="pi pi-search" />
+        <InputText
+          className="w-full"
+          placeholder="Buscar Talle..."
+          value={search}
+          onChange={(e) => { setPage(0); setSearch(e.target.value); }}
         />
       </div>
 
-      <span className="p-input-icon-left mb-3">
-        <i className="pi pi-search" />
-        <InputText
-          placeholder="Buscar Talle..."
-          value={search}
-          onChange={(e) => {
-            setPage(0);
-            setSearch(e.target.value);
-          }}
-        />
-      </span>
-
-      <DataTable
-        value={talles}
-        paginator
-        rows={size}
-        totalRecords={total}
-        lazy
-        size="small"
-        first={page * size}
-        onPage={(e) => setPage(e.page ?? 0)}
-        stripedRows
-        showGridlines
-        responsiveLayout="scroll"
-        emptyMessage="No existen talles registrados"
-        currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} talles"
-      >
-        <Column
-          field="codigo"
-          header="Código"
-          sortable
-          style={{ width: "120px", textAlign: "center" }}
-        />
-        <Column
-          field="descripcion"
-          header="Descripción"
-          sortable
-        />
-        <Column
-          header="Acciones"
-          body={accionesTemplate}
-          style={{ width: "160px" }}
-        />
-      </DataTable>
+      {isMobile ? (
+        <>
+          {talles.length === 0 ? (
+            <p style={{ textAlign: "center", color: "#9ca3af", padding: "24px 0" }}>No existen talles registrados</p>
+          ) : talles.map((item) => (
+            <div key={item.id} style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: "12px 14px", marginBottom: 8, background: "#fff", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>{item.descripcion}</div>
+                <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>
+                  <span>Código: {item.codigo}</span>
+                </div>
+              </div>
+              {accionesTemplate(item)}
+            </div>
+          ))}
+          <div style={{ display: "flex", justifyContent: "center", gap: 8, marginTop: 12, alignItems: "center" }}>
+            <Button icon="pi pi-angle-left" text size="small" disabled={page === 0} onClick={() => setPage(page - 1)} />
+            <span style={{ fontSize: 13, color: "#6b7280" }}>Pág. {page + 1} de {Math.max(1, Math.ceil(total / size))}</span>
+            <Button icon="pi pi-angle-right" text size="small" disabled={(page + 1) * size >= total} onClick={() => setPage(page + 1)} />
+          </div>
+        </>
+      ) : (
+        <DataTable
+          value={talles}
+          paginator
+          rows={size}
+          totalRecords={total}
+          lazy
+          size="small"
+          first={page * size}
+          onPage={(e) => setPage(e.page ?? 0)}
+          stripedRows
+          showGridlines
+          emptyMessage="No existen talles registrados"
+          currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} talles"
+        >
+          <Column
+            field="codigo"
+            header="Código"
+            sortable
+            style={{ width: "120px", textAlign: "center" }}
+          />
+          <Column
+            field="descripcion"
+            header="Descripción"
+            sortable
+          />
+          <Column
+            header="Acciones"
+            body={accionesTemplate}
+            style={{ width: "160px" }}
+          />
+        </DataTable>
+      )}
 
       <Dialog
         header={

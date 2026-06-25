@@ -15,6 +15,7 @@ import { Tag } from "primereact/tag";
 import { useAuth } from "../../context/AuthContext";
 import type { CajaAperturaCierreFiltros } from "../../services/CajaAperturaCierreService";
 import { CajaAperturaCierreService } from "../../services/CajaAperturaCierreService";
+import { useIsMobile } from "../../hooks/useIsMobile";
 
 interface CajaAperturaCierre {
   id: string;
@@ -41,6 +42,7 @@ interface CajaMovimiento {
   observacionAdicional?: string | null;
   tipoMovimiento: string;
   codigoMoneda?: string | null;
+  vuelto: number;
 }
 
 interface AperturaCajaForm {
@@ -113,6 +115,7 @@ const obtenerMensajeError = (error: any, fallback: string) => {
 export default function AperturaCajaPage() {
   const { user } = useAuth();
 
+  const isMobile = useIsMobile();
   const [cajas, setCajas] = useState<CajaAperturaCierre[]>([]);
   const [loading, setLoading] = useState(false);
   const [guardando, setGuardando] = useState(false);
@@ -494,7 +497,7 @@ export default function AperturaCajaPage() {
 
   return (
     <div>
-      <div className="flex justify-content-between align-items-center mb-4">
+      <div className="flex justify-content-between align-items-center mb-4" style={{ flexWrap: "wrap", gap: "10px" }}>
         <div>
           <h2 className="m-0">Apertura de caja</h2>
           <small className="text-color-secondary">
@@ -656,53 +659,88 @@ export default function AperturaCajaPage() {
         </div>
       </div>
 
-      <DataTable
-        value={cajas}
-        loading={loading}
-        lazy
-        paginator
-        first={first}
-        rows={size}
-        totalRecords={totalRecords}
-        rowsPerPageOptions={[10, 20, 50]}
-        onPage={onPage}
-        dataKey="id"
-        stripedRows
-        size="small"
-        emptyMessage="No hay aperturas de caja registradas"
-      >
-        <Column field="nroCaja" header="Nro. caja" style={{ width: "110px" }} />
-        <Column
-          header="Fecha apertura"
-          body={(rowData: CajaAperturaCierre) => formatDate(rowData.fechaApertura)}
-        />
-        <Column
-          header="Monto apertura"
-          body={(rowData: CajaAperturaCierre) => formatMoney(rowData.montoApertura)}
-        />
-        <Column
-          header="Total venta"
-          body={(rowData: CajaAperturaCierre) => formatMoney(rowData.totalVenta)}
-        />
-        <Column
-          header="Total gastos"
-          body={(rowData: CajaAperturaCierre) => formatMoney(rowData.totalGastos)}
-        />
-        <Column
-          header="Fecha cierre"
-          body={(rowData: CajaAperturaCierre) => formatDate(rowData.fechaCierre)}
-        />
-        <Column
-          header="Monto cierre"
-          body={(rowData: CajaAperturaCierre) => formatMoney(rowData.montoCierre)}
-        />
-        <Column header="Estado" body={estadoBody} style={{ width: "120px" }} />
-        <Column
-          header="Acciones"
-          body={accionesBody}
-          style={{ width: "160px" }}
-        />
-      </DataTable>
+      {isMobile ? (
+        <>
+          {cajas.length === 0 ? (
+            <p style={{ textAlign: "center", color: "#9ca3af", padding: "24px 0" }}>No hay aperturas de caja registradas</p>
+          ) : cajas.map((item) => (
+            <div key={item.id} style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: "12px 14px", marginBottom: 8, background: "#fff" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>Caja N° {item.nroCaja}</div>
+                  <div style={{ fontSize: 12, color: "#6b7280", marginTop: 3, display: "flex", flexWrap: "wrap", gap: "4px 12px" }}>
+                    <span>Apertura: {formatDate(item.fechaApertura)}</span>
+                    {item.fechaCierre && <span>Cierre: {formatDate(item.fechaCierre)}</span>}
+                  </div>
+                  <div style={{ fontSize: 12, color: "#374151", marginTop: 2, display: "flex", flexWrap: "wrap", gap: "4px 12px" }}>
+                    <span>Monto: <strong>{formatMoney(item.montoApertura)}</strong></span>
+                    {item.totalVenta != null && <span>Venta: <strong>{formatMoney(item.totalVenta)}</strong></span>}
+                  </div>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+                  {estadoBody(item)}
+                  {accionesBody(item)}
+                </div>
+              </div>
+            </div>
+          ))}
+          <div style={{ display: "flex", justifyContent: "center", gap: 8, marginTop: 12, alignItems: "center" }}>
+            <Button icon="pi pi-angle-left" text size="small" disabled={page === 0} onClick={() => onPage({ first: (page - 1) * size, rows: size, page: page - 1, pageCount: Math.ceil(totalRecords / size) })} />
+            <span style={{ fontSize: 13, color: "#6b7280" }}>Pág. {page + 1} de {Math.max(1, Math.ceil(totalRecords / size))}</span>
+            <Button icon="pi pi-angle-right" text size="small" disabled={(page + 1) * size >= totalRecords} onClick={() => onPage({ first: (page + 1) * size, rows: size, page: page + 1, pageCount: Math.ceil(totalRecords / size) })} />
+          </div>
+        </>
+      ) : (
+        <div style={{ overflowX: "auto" }}>
+        <DataTable
+          value={cajas}
+          loading={loading}
+          lazy
+          paginator
+          first={first}
+          rows={size}
+          totalRecords={totalRecords}
+          rowsPerPageOptions={[10, 20, 50]}
+          onPage={onPage}
+          dataKey="id"
+          stripedRows
+          size="small"
+          emptyMessage="No hay aperturas de caja registradas"
+        >
+          <Column field="nroCaja" header="Nro. caja" style={{ width: "110px" }} />
+          <Column
+            header="Fecha apertura"
+            body={(rowData: CajaAperturaCierre) => formatDate(rowData.fechaApertura)}
+          />
+          <Column
+            header="Monto apertura"
+            body={(rowData: CajaAperturaCierre) => formatMoney(rowData.montoApertura)}
+          />
+          <Column
+            header="Total venta"
+            body={(rowData: CajaAperturaCierre) => formatMoney(rowData.totalVenta)}
+          />
+          <Column
+            header="Total gastos"
+            body={(rowData: CajaAperturaCierre) => formatMoney(rowData.totalGastos)}
+          />
+          <Column
+            header="Fecha cierre"
+            body={(rowData: CajaAperturaCierre) => formatDate(rowData.fechaCierre)}
+          />
+          <Column
+            header="Monto cierre"
+            body={(rowData: CajaAperturaCierre) => formatMoney(rowData.montoCierre)}
+          />
+          <Column header="Estado" body={estadoBody} style={{ width: "120px" }} />
+          <Column
+            header="Acciones"
+            body={accionesBody}
+            style={{ width: "160px" }}
+          />
+        </DataTable>
+        </div>
+      )}
 
       <Dialog
         header={cajaDetalle ? `Detalle de caja ${cajaDetalle.nroCaja}` : "Detalle de caja"}

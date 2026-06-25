@@ -12,6 +12,7 @@ import { Checkbox } from "primereact/checkbox";
 import { RadioButton } from "primereact/radiobutton";
 
 import { PersonaService } from "../../services/PersonaService";
+import { useIsMobile } from "../../hooks/useIsMobile";
 import { CiudadesService } from "../../services/CiudadesService";
 import { PaisService } from "../../services/PaisService";
 import { DepartamentoService } from "../../services/DepartamentoService";
@@ -109,6 +110,7 @@ export default function PersonasPage() {
     const size = 10;
 
     const [search, setSearch] = useState("");
+    const isMobile = useIsMobile();
 
     const [open, setOpen] = useState(false);
     const [viewMode, setViewMode] = useState(false);
@@ -578,107 +580,134 @@ const adaptarPersonaDesdeApi = (data: any): Persona => ({
 
     return (
         <div className="card">
-            <div className="flex justify-content-between align-items-center mb-3">
+            <div className="flex justify-content-between align-items-center mb-3" style={{ flexWrap: "wrap", gap: "10px" }}>
                 <div>
                     <h2 className="m-0">Personas</h2>
                     <small className="text-color-secondary">Gestión de personas</small>
                 </div>
+                <Button label="Nueva Persona" icon="pi pi-plus" severity="success" onClick={abrirNuevo} />
+            </div>
 
-                <Button
-                    label="Nueva Persona"
-                    icon="pi pi-plus"
-                    severity="success"
-                    onClick={abrirNuevo}
+            <div className="p-input-icon-left mb-3 w-full">
+                <i className="pi pi-search" />
+                <InputText
+                    className="w-full"
+                    placeholder="Buscar por razón social, documento, ruc..."
+                    value={search}
+                    onChange={(e) => { setPage(0); setSearch(e.target.value); }}
                 />
             </div>
 
-            <span className="p-input-icon-left mb-3">
-                <i className="pi pi-search" />
-                <InputText
-                    placeholder="Buscar por razón social, documento, ruc..."
-                    value={search}
-                    onChange={(e) => {
-                        setPage(0);
-                        setSearch(e.target.value);
-                    }}
-                />
-            </span>
+            {isMobile ? (
+                <>
+                    {personas.length === 0 ? (
+                        <p style={{ textAlign: "center", color: "#9ca3af", padding: "24px 0" }}>No existen personas registradas</p>
+                    ) : personas.map((item) => (
+                        <div key={item.id} style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: "12px 14px", marginBottom: 8, background: "#fff" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+                                <div style={{ flex: 1 }}>
+                                    <div style={{ fontWeight: 600, fontSize: 14 }}>{item.razonSocial}</div>
+                                    <div style={{ fontSize: 12, color: "#6b7280", marginTop: 3, display: "flex", flexWrap: "wrap", gap: "4px 12px" }}>
+                                        {item.nroDocumento && <span>Doc: {item.nroDocumento}</span>}
+                                        {item.ruc && <span>RUC: {item.ruc}{item.dv ? "-" + item.dv : ""}</span>}
+                                    </div>
+                                    <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2, display: "flex", flexWrap: "wrap", gap: "4px 12px" }}>
+                                        {item.telefono && <span>Tel: {item.telefono}</span>}
+                                        {item.celular && <span>Cel: {item.celular}</span>}
+                                    </div>
+                                    {item.email && <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>{item.email}</div>}
+                                </div>
+                                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+                                    {estadoBodyTemplate(item)}
+                                    {accionesTemplate(item)}
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                    <div style={{ display: "flex", justifyContent: "center", gap: 8, marginTop: 12, alignItems: "center" }}>
+                        <Button icon="pi pi-angle-left" text size="small" disabled={page === 0} onClick={() => setPage(page - 1)} />
+                        <span style={{ fontSize: 13, color: "#6b7280" }}>Pág. {page + 1} de {Math.max(1, Math.ceil(total / size))}</span>
+                        <Button icon="pi pi-angle-right" text size="small" disabled={(page + 1) * size >= total} onClick={() => setPage(page + 1)} />
+                    </div>
+                </>
+            ) : (
+                <div style={{ overflowX: "auto" }}>
+                <DataTable
+                    value={personas}
+                    paginator
+                    rows={size}
+                    totalRecords={total}
+                    lazy
+                    size="small"
+                    first={page * size}
+                    onPage={(e) => setPage(e.page ?? 0)}
+                    stripedRows
+                    showGridlines
+                    emptyMessage="No existen personas registradas"
+                    currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} registros"
+                >
+                    <Column field="razonSocial" header="Razón Social" sortable />
 
-            <DataTable
-                value={personas}
-                paginator
-                rows={size}
-                totalRecords={total}
-                lazy
-                size="small"
-                first={page * size}
-                onPage={(e) => setPage(e.page ?? 0)}
-                stripedRows
-                showGridlines
-                responsiveLayout="scroll"
-                emptyMessage="No existen personas registradas"
-                currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} registros"
-            >
-                <Column field="razonSocial" header="Razón Social" sortable />
+                    <Column
+                        field="nroDocumento"
+                        header="Nro. Documento"
+                        sortable
+                        style={{ width: "160px", textAlign: "center" }}
+                    />
 
-                <Column
-                    field="nroDocumento"
-                    header="Nro. Documento"
-                    sortable
-                    style={{ width: "160px", textAlign: "center" }}
-                />
+                    <Column
+                        header="RUC"
+                        body={rucCompletoTemplate}
+                        style={{ width: "140px", textAlign: "center" }}
+                    />
 
-                <Column
-                    header="RUC"
-                    body={rucCompletoTemplate}
-                    style={{ width: "140px", textAlign: "center" }}
-                />
+                    <Column
+                        field="telefono"
+                        header="Teléfono"
+                        style={{ width: "130px", textAlign: "center" }}
+                    />
 
-                <Column
-                    field="telefono"
-                    header="Teléfono"
-                    style={{ width: "130px", textAlign: "center" }}
-                />
+                    <Column
+                        field="celular"
+                        header="Celular"
+                        style={{ width: "130px", textAlign: "center" }}
+                    />
 
-                <Column
-                    field="celular"
-                    header="Celular"
-                    style={{ width: "130px", textAlign: "center" }}
-                />
+                    <Column field="email" header="Email" style={{ minWidth: "220px" }} />
 
-                <Column field="email" header="Email" style={{ minWidth: "220px" }} />
+                    <Column
+                        header="Tipo Documento"
+                        body={(rowData: Persona) => rowData.tipoDocumento?.descripcion || "-"}
+                        style={{ width: "180px" }}
+                    />
 
-                <Column
-                    header="Tipo Documento"
-                    body={(rowData: Persona) => rowData.tipoDocumento?.descripcion || "-"}
-                    style={{ width: "180px" }}
-                />
+                    <Column
+                        header="Ciudad"
+                        body={(rowData: Persona) => rowData.ciudad?.descripcion || "-"}
+                        style={{ width: "160px" }}
+                    />
 
-                <Column
-                    header="Ciudad"
-                    body={(rowData: Persona) => rowData.ciudad?.descripcion || "-"}
-                    style={{ width: "160px" }}
-                />
+                    <Column
+                        header="País"
+                        body={(rowData: Persona) => rowData.pais?.descripcion || "-"}
+                        style={{ width: "160px" }}
+                    />
 
-                <Column
-                    header="País"
-                    body={(rowData: Persona) => rowData.pais?.descripcion || "-"}
-                    style={{ width: "160px" }}
-                />
+                    <Column
+                        field="active"
+                        header="Estado"
+                        body={estadoBodyTemplate}
+                        style={{ width: "120px", textAlign: "center" }}
+                    />
 
-                <Column
-                    field="active"
-                    header="Estado"
-                    body={estadoBodyTemplate}
-                    style={{ width: "120px", textAlign: "center" }}
-                />
-
-                <Column
-                    header="Acciones"
-                    body={accionesTemplate}
-                    style={{ width: "140px" }}
-                />
-            </DataTable>
+                    <Column
+                        header="Acciones"
+                        body={accionesTemplate}
+                        style={{ width: "140px" }}
+                    />
+                </DataTable>
+                </div>
+            )}
 
             <Dialog
                 header={viewMode ? "Ver persona" : editing ? "Editar persona" : "Nueva persona"}

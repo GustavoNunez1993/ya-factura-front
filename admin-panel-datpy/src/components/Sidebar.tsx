@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 
 interface Props {
@@ -25,10 +25,18 @@ interface SubItemProps {
   onClick: () => void;
 }
 
-export default function Sidebar({ collapsed }: Props) {
+export default function Sidebar({ collapsed, mobileOpen, setMobileOpen }: Props) {
   const navigate = useNavigate();
   const location = useLocation();
   const { logout } = useAuth();
+
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -42,18 +50,25 @@ export default function Sidebar({ collapsed }: Props) {
     await logout();
   };
 
-  return (
+  const go = (path: string) => {
+    navigate(path);
+    if (isMobile) setMobileOpen(false);
+  };
+
+  const isCollapsed = isMobile ? false : collapsed;
+
+  const sidebarContent = (
     <aside
       style={{
-        width: collapsed ? 80 : 240,
-        transition: "width .25s",
+        width: isCollapsed ? 80 : 240,
         background: "#0f2747",
         borderRight: "1px solid #14315a",
         height: "100%",
         overflowY: "auto",
         color: "#d6e4ff",
         display: "flex",
-        flexDirection: "column"
+        flexDirection: "column",
+        flexShrink: 0
       }}
     >
       <div
@@ -61,25 +76,25 @@ export default function Sidebar({ collapsed }: Props) {
           padding: "20px",
           fontWeight: 600,
           fontSize: 16,
-          textAlign: collapsed ? "center" : "left",
+          textAlign: isCollapsed ? "center" : "left",
           borderBottom: "1px solid #14315a"
         }}
       >
-        {collapsed ? "SA" : "Sistema Administrativo"}
+        {isCollapsed ? "SA" : "Sistema Administrativo"}
       </div>
 
       <MenuItem
         icon="pi pi-th-large"
         label="Dashboard"
-        collapsed={collapsed}
+        collapsed={isCollapsed}
         active={isActive("/dashboard")}
-        onClick={() => navigate("/dashboard")}
+        onClick={() => go("/dashboard")}
       />
 
       <MenuItem
         icon="pi pi-cog"
         label="Configuraciones"
-        collapsed={collapsed}
+        collapsed={isCollapsed}
         expandable
         open={openConfig}
         active={
@@ -92,27 +107,25 @@ export default function Sidebar({ collapsed }: Props) {
         onClick={() => setOpenConfig(!openConfig)}
       />
 
-      {openConfig && !collapsed && (
+      {openConfig && !isCollapsed && (
         <>
           <SubItem
             icon="pi pi-users"
             label="Personas"
             active={isActive("/personas")}
-            onClick={() => navigate("/personas")}
+            onClick={() => go("/personas")}
           />
-
           <SubItem
             icon="pi pi-users"
             label="Proveedores"
             active={isActive("/proveedores")}
-            onClick={() => navigate("/proveedores")}
+            onClick={() => go("/proveedores")}
           />
-
           <SubItem
             icon="pi pi-users"
             label="Bancos"
             active={isActive("/bancos")}
-            onClick={() => navigate("/bancos")}
+            onClick={() => go("/bancos")}
           />
         </>
       )}
@@ -120,7 +133,7 @@ export default function Sidebar({ collapsed }: Props) {
       <MenuItem
         icon="pi pi-box"
         label="Conf. Productos"
-        collapsed={collapsed}
+        collapsed={isCollapsed}
         expandable
         open={openProductos}
         active={
@@ -134,144 +147,67 @@ export default function Sidebar({ collapsed }: Props) {
         onClick={() => setOpenProductos(!openProductos)}
       />
 
-      {openProductos && !collapsed && (
+      {openProductos && !isCollapsed && (
         <>
-          <SubItem
-            icon="pi pi-box"
-            label="Productos"
-            active={isActive("/productos")}
-            onClick={() => navigate("/productos")}
-          />
-          <SubItem
-            icon="pi pi-bookmark"
-            label="Marcas"
-            active={isActive("/marcas")}
-            onClick={() => navigate("/marcas")}
-          />
-          <SubItem
-            icon="pi pi-sitemap"
-            label="Familias"
-            active={isActive("/familias")}
-            onClick={() => navigate("/familias")}
-          />
-          <SubItem
-            icon="pi pi-share-alt"
-            label="Sub-Familias"
-            active={isActive("/sub-familias")}
-            onClick={() => navigate("/sub-familias")}
-          />
-          <SubItem
-            icon="pi pi-palette"
-            label="Colores"
-            active={isActive("/colores")}
-            onClick={() => navigate("/colores")}
-          />
-          <SubItem
-            icon="pi pi-check-square"
-            label="Selector Producto"
-            active={isActive("/seleccion-producto")}
-            onClick={() => navigate("/seleccion-producto")}
-          />
-          <SubItem
-            icon="pi pi-hashtag"
-            label="Talles"
-            active={isActive("/talles")}
-            onClick={() => navigate("/talles")}
-          />
+          <SubItem icon="pi pi-box" label="Productos" active={isActive("/productos")} onClick={() => go("/productos")} />
+          <SubItem icon="pi pi-bookmark" label="Marcas" active={isActive("/marcas")} onClick={() => go("/marcas")} />
+          <SubItem icon="pi pi-sitemap" label="Familias" active={isActive("/familias")} onClick={() => go("/familias")} />
+          <SubItem icon="pi pi-share-alt" label="Sub-Familias" active={isActive("/sub-familias")} onClick={() => go("/sub-familias")} />
+          <SubItem icon="pi pi-palette" label="Colores" active={isActive("/colores")} onClick={() => go("/colores")} />
+          <SubItem icon="pi pi-check-square" label="Selector Producto" active={isActive("/seleccion-producto")} onClick={() => go("/seleccion-producto")} />
+          <SubItem icon="pi pi-hashtag" label="Talles" active={isActive("/talles")} onClick={() => go("/talles")} />
         </>
       )}
 
       <MenuItem
         icon="pi pi-wallet"
         label="Facturación"
-        collapsed={collapsed}
+        collapsed={isCollapsed}
         expandable
         open={openFacturacion}
-        active={
-          isActive("/facturacion") ||
-          isActive("/apertura-caja") ||
-          isActive("/cierre-caja")
-        }
+        active={isActive("/facturacion") || isActive("/apertura-caja") || isActive("/cierre-caja")}
         onClick={() => setOpenFacturacion(!openFacturacion)}
       />
 
-      {openFacturacion && !collapsed && (
+      {openFacturacion && !isCollapsed && (
         <>
-          <SubItem
-            icon="pi pi-receipt"
-            label="Facturación"
-            active={isActive("/facturacion")}
-            onClick={() => navigate("/facturacion")}
-          />
-          <SubItem
-            icon="pi pi-play-circle"
-            label="Apertura Caja"
-            active={isActive("/apertura-caja")}
-            onClick={() => navigate("/apertura-caja")}
-          />
-          <SubItem
-            icon="pi pi-stop-circle"
-            label="Cierre Caja"
-            active={isActive("/cierre-caja")}
-            onClick={() => navigate("/cierre-caja")}
-          />
+          <SubItem icon="pi pi-receipt" label="Facturación" active={isActive("/facturacion")} onClick={() => go("/facturacion")} />
+          <SubItem icon="pi pi-play-circle" label="Apertura Caja" active={isActive("/apertura-caja")} onClick={() => go("/apertura-caja")} />
+          <SubItem icon="pi pi-stop-circle" label="Cierre Caja" active={isActive("/cierre-caja")} onClick={() => go("/cierre-caja")} />
         </>
       )}
 
       <MenuItem
         icon="pi pi-credit-card"
         label="Cuenta Corrientes"
-        collapsed={collapsed}
+        collapsed={isCollapsed}
         expandable
         open={openCuentaCorriente}
-        active={
-          isActive("/cuenta-corriente/clientes") ||
-          isActive("/cuenta-corriente/proveedores")
-        }
+        active={isActive("/cuenta-corriente/clientes") || isActive("/cuenta-corriente/proveedores")}
         onClick={() => setOpenCuentaCorriente(!openCuentaCorriente)}
       />
 
-      {openCuentaCorriente && !collapsed && (
+      {openCuentaCorriente && !isCollapsed && (
         <>
-          <SubItem
-            icon="pi pi-users"
-            label="Clientes"
-            active={isActive("/cuenta-corriente/clientes")}
-            onClick={() => navigate("/cuenta-corriente/clientes")}
-          />
-          <SubItem
-            icon="pi pi-briefcase"
-            label="Proveedores"
-            active={isActive("/cuenta-corriente/proveedores")}
-            onClick={() => navigate("/cuenta-corriente/proveedores")}
-          />
+          <SubItem icon="pi pi-users" label="Clientes" active={isActive("/cuenta-corriente/clientes")} onClick={() => go("/cuenta-corriente/clientes")} />
+          <SubItem icon="pi pi-briefcase" label="Proveedores" active={isActive("/cuenta-corriente/proveedores")} onClick={() => go("/cuenta-corriente/proveedores")} />
         </>
       )}
 
       <MenuItem
         icon="pi pi-chart-line"
         label="Reportes"
-        collapsed={collapsed}
+        collapsed={isCollapsed}
         expandable
         open={openReportes}
         active={isActive("/ventas") || isActive("/stock")}
         onClick={() => setOpenReportes(!openReportes)}
       />
 
-      {openReportes && !collapsed && (
+      {openReportes && !isCollapsed && (
         <>
-          <SubItem
-            icon="pi pi-chart-bar"
-            label="Ventas"
-            active={isActive("/ventas")}
-            onClick={() => navigate("/ventas")}
-          />
-          <SubItem
-            icon="pi pi-database"
-            label="Stock"
-            active={isActive("/stock")}
-            onClick={() => navigate("/stock")}
-          />
+          <SubItem icon="pi pi-chart-bar" label="Ventas" active={isActive("/ventas")} onClick={() => go("/ventas")} />
+          <SubItem icon="pi pi-database" label="Stock" active={isActive("/stock")} onClick={() => go("/stock")} />
         </>
       )}
 
@@ -279,42 +215,55 @@ export default function Sidebar({ collapsed }: Props) {
         style={{
           marginTop: "auto",
           borderTop: "1px solid #14315a",
-          padding: collapsed ? "16px 0" : "16px 20px"
+          padding: isCollapsed ? "16px 0" : "16px 20px"
         }}
       >
         <div
           onClick={handleLogout}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            cursor: "pointer",
-            color: "#ff6b6b"
-          }}
+          style={{ display: "flex", alignItems: "center", cursor: "pointer", color: "#ff6b6b" }}
         >
-          <i
-            className="pi pi-sign-out"
-            style={{
-              fontSize: 16,
-              width: 28
-            }}
-          />
-
-          {!collapsed && <span>Logout</span>}
+          <i className="pi pi-sign-out" style={{ fontSize: 16, width: 28 }} />
+          {!isCollapsed && <span>Logout</span>}
         </div>
       </div>
     </aside>
   );
+
+  if (isMobile) {
+    return (
+      <>
+        {mobileOpen && (
+          <div
+            onClick={() => setMobileOpen(false)}
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(0,0,0,0.5)",
+              zIndex: 999
+            }}
+          />
+        )}
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            height: "100%",
+            zIndex: 1000,
+            transform: mobileOpen ? "translateX(0)" : "translateX(-100%)",
+            transition: "transform .25s ease"
+          }}
+        >
+          {sidebarContent}
+        </div>
+      </>
+    );
+  }
+
+  return sidebarContent;
 }
 
-function MenuItem({
-  icon,
-  label,
-  collapsed,
-  active,
-  expandable,
-  open,
-  onClick
-}: MenuItemProps) {
+function MenuItem({ icon, label, collapsed, active, expandable, open, onClick }: MenuItemProps) {
   return (
     <div
       onClick={onClick}
@@ -328,19 +277,10 @@ function MenuItem({
         transition: "all .15s"
       }}
     >
-      <i
-        className={icon}
-        style={{
-          fontSize: 16,
-          width: 28,
-          color: "#4fd1ff"
-        }}
-      />
-
+      <i className={icon} style={{ fontSize: 16, width: 28, color: "#4fd1ff" }} />
       {!collapsed && (
         <>
           <span style={{ fontSize: 14 }}>{label}</span>
-
           {expandable && (
             <i
               className={open ? "pi pi-chevron-up" : "pi pi-chevron-down"}
@@ -368,14 +308,7 @@ function SubItem({ icon, label, active, onClick }: SubItemProps) {
         transition: "all .15s"
       }}
     >
-      <i
-        className={icon}
-        style={{
-          width: 24,
-          color: "#4fd1ff"
-        }}
-      />
-
+      <i className={icon} style={{ width: 24, color: "#4fd1ff" }} />
       <span style={{ fontSize: 13 }}>{label}</span>
     </div>
   );

@@ -9,77 +9,64 @@ interface Props {
 }
 
 export default function AdminLayout({ toggleTheme }: Props) {
-
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
   useEffect(() => {
-
-    const handleResize = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-
-    handleResize();
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener("resize", handleResize);
-
     return () => window.removeEventListener("resize", handleResize);
-
   }, []);
 
   return (
-
     <div className="flex flex-column h-screen">
-
       <Topbar
         toggleSidebar={() =>
-          isMobile
-            ? setMobileOpen(true)
-            : setCollapsed(!collapsed)
+          isMobile ? setMobileOpen((prev) => !prev) : setCollapsed((prev) => !prev)
         }
         toggleTheme={toggleTheme}
       />
 
       <div className="flex flex-1 overflow-hidden">
+        {!isMobile && (
+          <Sidebar
+            collapsed={collapsed}
+            mobileOpen={false}
+            setMobileOpen={setMobileOpen}
+          />
+        )}
 
-        <Sidebar
-          collapsed={collapsed}
-          mobileOpen={mobileOpen}
-          setMobileOpen={setMobileOpen}
-        />
+        {isMobile && (
+          <Sidebar
+            collapsed={false}
+            mobileOpen={mobileOpen}
+            setMobileOpen={setMobileOpen}
+          />
+        )}
 
         <main
           className="flex-1 overflow-auto"
           style={{
             background: "#f4f6f9",
-            padding: "16px"
+            padding: isMobile ? "10px" : "16px"
           }}
         >
-
           <div style={{ width: "100%", maxWidth: "100%", margin: "0 auto" }}>
-
             <div
               style={{
                 background: "#ffffff",
                 borderRadius: "10px",
-                padding: "20px",
+                padding: isMobile ? "12px" : "20px",
                 border: "1px solid #e5e7eb",
                 boxShadow: "0 4px 12px rgba(0,0,0,0.05)"
               }}
             >
-
               <Outlet />
-
             </div>
-
           </div>
-
         </main>
-
       </div>
-
     </div>
-
   );
-
 }
