@@ -2,10 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import Swal from "sweetalert2";
 
 import { Button } from "primereact/button";
+import { Checkbox } from "primereact/checkbox";
 import { Column } from "primereact/column";
 import { DataTable } from "primereact/datatable";
+import { Dialog } from "primereact/dialog";
 import { Dropdown } from "primereact/dropdown";
 import { InputNumber } from "primereact/inputnumber";
+import { InputText } from "primereact/inputtext";
 import { Tag } from "primereact/tag";
 
 import { PersonaService } from "../../services/PersonaService";
@@ -35,7 +38,31 @@ interface FacturaPendiente {
   saldoPendiente: number;
   montoPago?: number | null;
   estado?: string;
+  seleccionada?: boolean;
 }
+
+interface FormaPago {
+  id: string;
+  tipoPagoId: number;
+  descripcion: string;
+  monto: number;
+  referencia?: string;
+}
+
+interface TipoPagoOption {
+  id: number;
+  descripcion: string;
+}
+
+const tiposPago: TipoPagoOption[] = [
+  { id: 1, descripcion: "Efectivo" },
+  { id: 2, descripcion: "Cheque" },
+  { id: 3, descripcion: "Tarjeta de crédito" },
+  { id: 4, descripcion: "Tarjeta de débito" },
+  { id: 5, descripcion: "Transferencia" },
+  { id: 7, descripcion: "Billetera electrónica" },
+  { id: 99, descripcion: "Otro" }
+];
 
 const obtenerMensajeError = (error: any, fallback: string) => {
   const data = error?.response?.data;
@@ -52,21 +79,32 @@ const obtenerMensajeError = (error: any, fallback: string) => {
   );
 };
 
+const nuevoIdTemporal = () => {
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+};
+
 export default function CuentaCorrientePage({ tipo }: Props) {
   const esCliente = tipo === "clientes";
 
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [clienteId, setClienteId] = useState<string | null>(null);
   const [facturas, setFacturas] = useState<FacturaPendiente[]>([]);
-  const [facturasSeleccionadas, setFacturasSeleccionadas] = useState<FacturaPendiente[]>([]);
+
   const [loadingClientes, setLoadingClientes] = useState(false);
   const [loadingFacturas, setLoadingFacturas] = useState(false);
   const [registrandoPago, setRegistrandoPago] = useState(false);
 
+  const [modalPagoVisible, setModalPagoVisible] = useState(false);
+  const [formasPago, setFormasPago] = useState<FormaPago[]>([]);
+
   const clienteSeleccionado = useMemo(
-    () => clientes.find((cliente) => cliente.id === clienteId) ?? null,
+    () => clientes.find((cliente) => String(cliente.id) === String(clienteId)) ?? null,
     [clientes, clienteId]
   );
+
+  const facturasSeleccionadas = useMemo(() => {
+    return facturas.filter((factura) => factura.seleccionada);
+  }, [facturas]);
 
   const totalSeleccionado = useMemo(() => {
     return facturasSeleccionadas.reduce(
@@ -74,6 +112,10 @@ export default function CuentaCorrientePage({ tipo }: Props) {
       0
     );
   }, [facturasSeleccionadas]);
+
+  const totalFormasPago = useMemo(() => {
+    return formasPago.reduce((total, forma) => total + Number(forma.monto || 0), 0);
+  }, [formasPago]);
 
   const cargarClientes = async () => {
     try {
@@ -91,13 +133,18 @@ export default function CuentaCorrientePage({ tipo }: Props) {
   const cargarFacturasPendientes = async (nextClienteId: string) => {
     try {
       setLoadingFacturas(true);
-      setFacturasSeleccionadas([]);
+      setFormasPago([]);
 
       const res = await CuentaCorrienteService.getFacturasPendientesCliente(nextClienteId);
-      const facturasPendientes = (res?.content ?? res ?? []).map((factura: FacturaPendiente) => ({
-        ...factura,
-        montoPago: Number(factura.saldoPendiente || 0)
-      }));
+
+      const facturasPendientes = (res?.content ?? res ?? []).map(
+        (factura: FacturaPendiente) => ({
+          ...factura,
+          id: String(factura.id),
+          montoPago: Number(factura.saldoPendiente || 0),
+          seleccionada: false
+        })
+      );
 
       setFacturas(facturasPendientes);
     } catch (error) {
@@ -122,7 +169,7 @@ export default function CuentaCorrientePage({ tipo }: Props) {
   const onClienteChange = (nextClienteId: string | null) => {
     setClienteId(nextClienteId);
     setFacturas([]);
-    setFacturasSeleccionadas([]);
+    setFormasPago([]);
 
     if (nextClienteId) {
       cargarFacturasPendientes(nextClienteId);
@@ -162,38 +209,83 @@ export default function CuentaCorrientePage({ tipo }: Props) {
     return <Tag value={estado} severity="warning" />;
   };
 
+  const normalizarMontoPago = (value: number | null | undefined, saldoPendiente: number) => {
+    const saldo = Number(saldoPendiente || 0);
+    const monto = Number(value || 0);
+
+    return Math.min(Math.max(monto, 0), saldo);
+  };
+
   const actualizarMontoPago = (facturaId: string, value: number | null) => {
     setFacturas((prev) =>
       prev.map((factura) => {
-        if (factura.id !== facturaId) return factura;
-
-        const saldo = Number(factura.saldoPendiente || 0);
-        const montoPago = Math.min(Math.max(Number(value || 0), 0), saldo);
+        if (String(factura.id) !== String(facturaId)) return factura;
 
         return {
           ...factura,
-          montoPago
-        };
-      })
-    );
-
-    setFacturasSeleccionadas((prev) =>
-      prev.map((factura) => {
-        if (factura.id !== facturaId) return factura;
-
-        const saldo = Number(factura.saldoPendiente || 0);
-        const montoPago = Math.min(Math.max(Number(value || 0), 0), saldo);
-
-        return {
-          ...factura,
-          montoPago
+          montoPago: normalizarMontoPago(value, factura.saldoPendiente)
         };
       })
     );
   };
 
+  const toggleFactura = (factura: FacturaPendiente) => {
+    const facturaId = String(factura.id);
+
+    setFacturas((prev) =>
+      prev.map((item) => {
+        if (String(item.id) !== facturaId) return item;
+
+        const seleccionada = !item.seleccionada;
+
+        return {
+          ...item,
+          seleccionada,
+          montoPago:
+            seleccionada && (item.montoPago === null || item.montoPago === undefined)
+              ? Number(item.saldoPendiente || 0)
+              : normalizarMontoPago(item.montoPago, item.saldoPendiente)
+        };
+      })
+    );
+  };
+
+  const todasSeleccionadas =
+    facturas.length > 0 && facturas.every((factura) => factura.seleccionada);
+
+  const toggleTodas = () => {
+    const nuevoValor = !todasSeleccionadas;
+
+    setFacturas((prev) =>
+      prev.map((factura) => ({
+        ...factura,
+        seleccionada: nuevoValor,
+        montoPago:
+          nuevoValor && (factura.montoPago === null || factura.montoPago === undefined)
+            ? Number(factura.saldoPendiente || 0)
+            : factura.montoPago
+      }))
+    );
+  };
+
+  const seleccionHeader = (
+    <Checkbox
+      checked={todasSeleccionadas}
+      onChange={toggleTodas}
+    />
+  );
+
+  const seleccionBody = (rowData: FacturaPendiente) => {
+    return (
+      <Checkbox
+        checked={!!rowData.seleccionada}
+        onChange={() => toggleFactura(rowData)}
+      />
+    );
+  };
+
   const montoPagoBody = (rowData: FacturaPendiente) => {
-    const seleccionada = facturasSeleccionadas.some((factura) => factura.id === rowData.id);
+    const seleccionada = !!rowData.seleccionada;
 
     return (
       <InputNumber
@@ -209,11 +301,74 @@ export default function CuentaCorrientePage({ tipo }: Props) {
         maxFractionDigits={0}
         disabled={!seleccionada}
         onValueChange={(e) => actualizarMontoPago(rowData.id, e.value ?? null)}
+        onFocus={(e) => {
+          const target = e.target;
+          setTimeout(() => target.select(), 0);
+        }}
       />
     );
   };
 
-  const registrarPago = async () => {
+  const abrirModalPago = () => {
+    if (!clienteId) {
+      Swal.fire("Atención", "Seleccione un cliente", "warning");
+      return;
+    }
+
+    if (!facturasSeleccionadas.length) {
+      Swal.fire("Atención", "Seleccione al menos una factura", "warning");
+      return;
+    }
+
+    if (totalSeleccionado <= 0) {
+      Swal.fire("Atención", "El monto total a pagar debe ser mayor a cero", "warning");
+      return;
+    }
+
+    setFormasPago([
+      {
+        id: nuevoIdTemporal(),
+        tipoPagoId: 1,
+        descripcion: "Efectivo",
+        monto: totalSeleccionado,
+        referencia: ""
+      }
+    ]);
+
+    setModalPagoVisible(true);
+  };
+
+  const agregarFormaPago = () => {
+    setFormasPago((prev) => [
+      ...prev,
+      {
+        id: nuevoIdTemporal(),
+        tipoPagoId: 1,
+        descripcion: "Efectivo",
+        monto: 0,
+        referencia: ""
+      }
+    ]);
+  };
+
+  const eliminarFormaPago = (id: string) => {
+    setFormasPago((prev) => prev.filter((forma) => forma.id !== id));
+  };
+
+  const actualizarFormaPago = (id: string, cambios: Partial<FormaPago>) => {
+    setFormasPago((prev) =>
+      prev.map((forma) => {
+        if (forma.id !== id) return forma;
+
+        return {
+          ...forma,
+          ...cambios
+        };
+      })
+    );
+  };
+
+  const confirmarRegistroPago = async () => {
     if (!clienteId) {
       Swal.fire("Atención", "Seleccione un cliente", "warning");
       return;
@@ -231,26 +386,41 @@ export default function CuentaCorrientePage({ tipo }: Props) {
       return;
     }
 
-    const result = await Swal.fire({
-      icon: "question",
-      title: "Registrar pago",
-      text: `¿Desea registrar un pago por ${formatMoney(totalSeleccionado)}?`,
-      showCancelButton: true,
-      confirmButtonText: "Sí, registrar",
-      cancelButtonText: "Cancelar"
-    });
+    const formasPagoValidas = formasPago.filter((forma) => Number(forma.monto || 0) > 0);
 
-    if (!result.isConfirmed) return;
+    if (!formasPagoValidas.length) {
+      Swal.fire("Atención", "Agregue al menos una forma de pago", "warning");
+      return;
+    }
+
+    if (Number(totalFormasPago) !== Number(totalSeleccionado)) {
+      Swal.fire(
+        "Atención",
+        `El total de formas de pago ${formatMoney(totalFormasPago)} debe coincidir con el total a pagar ${formatMoney(totalSeleccionado)}`,
+        "warning"
+      );
+      return;
+    }
 
     try {
       setRegistrandoPago(true);
 
       await CuentaCorrienteService.registrarPagoCliente({
         clienteId,
-        items
+        items,
+        formasPago: formasPagoValidas.map((forma) => ({
+          tipoPagoId: forma.tipoPagoId,
+          descripcion: forma.descripcion,
+          monto: Number(forma.monto || 0),
+          referencia: forma.referencia || null
+        }))
       });
 
       Swal.fire("Registrado", "Pago registrado correctamente", "success");
+
+      setModalPagoVisible(false);
+      setFormasPago([]);
+
       cargarFacturasPendientes(clienteId);
     } catch (error) {
       console.error(error);
@@ -263,6 +433,25 @@ export default function CuentaCorrientePage({ tipo }: Props) {
       setRegistrandoPago(false);
     }
   };
+
+  const modalFooter = (
+    <div className="flex justify-content-end gap-2">
+      <Button
+        label="Cancelar"
+        icon="pi pi-times"
+        severity="secondary"
+        onClick={() => setModalPagoVisible(false)}
+        disabled={registrandoPago}
+      />
+      <Button
+        label="Confirmar pago"
+        icon="pi pi-check"
+        severity="success"
+        onClick={confirmarRegistroPago}
+        loading={registrandoPago}
+      />
+    </div>
+  );
 
   if (!esCliente) {
     return (
@@ -291,7 +480,7 @@ export default function CuentaCorrientePage({ tipo }: Props) {
           label="Registrar pago"
           icon="pi pi-check"
           severity="success"
-          onClick={registrarPago}
+          onClick={abrirModalPago}
           loading={registrandoPago}
           disabled={!facturasSeleccionadas.length}
         />
@@ -345,9 +534,6 @@ export default function CuentaCorrientePage({ tipo }: Props) {
         value={facturas}
         loading={loadingFacturas}
         dataKey="id"
-        selectionMode="multiple"
-        selection={facturasSeleccionadas}
-        onSelectionChange={(e: any) => setFacturasSeleccionadas(e.value ?? [])}
         stripedRows
         size="small"
         emptyMessage={
@@ -356,15 +542,175 @@ export default function CuentaCorrientePage({ tipo }: Props) {
             : "Seleccione un cliente para consultar sus facturas pendientes"
         }
       >
-        <Column selectionMode="multiple" headerStyle={{ width: "3rem" }} />
+        <Column
+          header={seleccionHeader}
+          body={seleccionBody}
+          headerStyle={{ width: "3rem" }}
+          bodyStyle={{ textAlign: "center" }}
+        />
+
         <Column header="Factura" body={numeracionBody} />
-        <Column header="Fecha emisión" body={(rowData: FacturaPendiente) => formatDate(rowData.fechaEmision)} />
-        <Column header="Vencimiento" body={(rowData: FacturaPendiente) => formatDate(rowData.fechaVencimiento)} />
-        <Column header="Total" body={(rowData: FacturaPendiente) => formatMoney(rowData.total)} />
-        <Column header="Saldo pendiente" body={(rowData: FacturaPendiente) => formatMoney(rowData.saldoPendiente)} />
-        <Column header="Monto a pagar" body={montoPagoBody} style={{ minWidth: "180px" }} />
+
+        <Column
+          header="Fecha emisión"
+          body={(rowData: FacturaPendiente) => formatDate(rowData.fechaEmision)}
+        />
+
+        <Column
+          header="Vencimiento"
+          body={(rowData: FacturaPendiente) => formatDate(rowData.fechaVencimiento)}
+        />
+
+        <Column
+          header="Total"
+          body={(rowData: FacturaPendiente) => formatMoney(rowData.total)}
+        />
+
+        <Column
+          header="Saldo pendiente"
+          body={(rowData: FacturaPendiente) => formatMoney(rowData.saldoPendiente)}
+        />
+
+        <Column
+          header="Monto a pagar"
+          body={montoPagoBody}
+          style={{ minWidth: "180px" }}
+        />
+
         <Column header="Estado" body={estadoBody} />
       </DataTable>
+
+      <Dialog
+        header="Formas de pago"
+        visible={modalPagoVisible}
+        style={{ width: "720px" }}
+        modal
+        footer={modalFooter}
+        onHide={() => setModalPagoVisible(false)}
+      >
+        <div className="mb-3">
+          <div className="text-color-secondary text-sm">
+            Total de facturas seleccionadas
+          </div>
+          <div style={{ fontSize: "1.5rem", fontWeight: 700 }}>
+            {formatMoney(totalSeleccionado)}
+          </div>
+        </div>
+
+        <div className="flex justify-content-between align-items-center mb-3">
+          <strong>Detalle de pago</strong>
+          <Button
+            label="Agregar forma"
+            icon="pi pi-plus"
+            size="small"
+            onClick={agregarFormaPago}
+          />
+        </div>
+
+        <div className="flex flex-column gap-3">
+          {formasPago.map((forma) => (
+            <div
+              key={forma.id}
+              className="grid align-items-end"
+              style={{
+                border: "1px solid #e5e7eb",
+                borderRadius: 8,
+                padding: 10
+              }}
+            >
+              <div className="col-12 md:col-4">
+                <label>Forma de pago</label>
+                <Dropdown
+                  className="w-full"
+                  value={forma.tipoPagoId}
+                  options={tiposPago}
+                  optionLabel="descripcion"
+                  optionValue="id"
+                  onChange={(e) => {
+                    const tipo = tiposPago.find((item) => item.id === e.value);
+
+                    actualizarFormaPago(forma.id, {
+                      tipoPagoId: Number(e.value),
+                      descripcion: tipo?.descripcion ?? ""
+                    });
+                  }}
+                />
+              </div>
+
+              <div className="col-12 md:col-3">
+                <label>Monto</label>
+                <InputNumber
+                  className="w-full"
+                  inputClassName="w-full"
+                  value={forma.monto}
+                  min={0}
+                  mode="currency"
+                  currency="PYG"
+                  locale="es-PY"
+                  minFractionDigits={0}
+                  maxFractionDigits={0}
+                  onValueChange={(e) =>
+                    actualizarFormaPago(forma.id, {
+                      monto: Number(e.value || 0)
+                    })
+                  }
+                />
+              </div>
+
+              <div className="col-12 md:col-4">
+                <label>Referencia</label>
+                <InputText
+                  className="w-full"
+                  value={forma.referencia || ""}
+                  placeholder="Nro. operación, cheque, autorización..."
+                  onChange={(e) =>
+                    actualizarFormaPago(forma.id, {
+                      referencia: e.target.value
+                    })
+                  }
+                />
+              </div>
+
+              <div className="col-12 md:col-1">
+                <Button
+                  icon="pi pi-trash"
+                  severity="danger"
+                  outlined
+                  onClick={() => eliminarFormaPago(forma.id)}
+                  disabled={formasPago.length === 1}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div
+          className="mt-4"
+          style={{
+            borderTop: "1px solid #e5e7eb",
+            paddingTop: 12
+          }}
+        >
+          <div className="flex justify-content-between">
+            <span>Total formas de pago:</span>
+            <strong>{formatMoney(totalFormasPago)}</strong>
+          </div>
+
+          <div className="flex justify-content-between mt-2">
+            <span>Diferencia:</span>
+            <strong
+              style={{
+                color:
+                  Number(totalFormasPago) === Number(totalSeleccionado)
+                    ? "#16a34a"
+                    : "#dc2626"
+              }}
+            >
+              {formatMoney(totalSeleccionado - totalFormasPago)}
+            </strong>
+          </div>
+        </div>
+      </Dialog>
     </div>
   );
 }

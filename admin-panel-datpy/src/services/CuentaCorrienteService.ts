@@ -29,7 +29,8 @@ export const CuentaCorrienteService = {
 
     const res = await api.post("/cuenta-corriente/clientes/pagos", {
       ...data,
-      empresaId
+      empresaId,
+      nroCaja: 1
     });
 
     return res.data;
