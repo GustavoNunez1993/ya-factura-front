@@ -66,6 +66,12 @@ const monedas = [
   { label: "Euros", value: "EUR" }
 ];
 
+const puntosExpedicion = [
+  { label: "001-001", value: "001-001" },
+  { label: "001-002", value: "001-002" },
+  { label: "002-001", value: "002-001" }
+];
+
 const cotizaciones: Record<string, number> = {
   PYG: 1,
   USD: 6500,
@@ -139,6 +145,8 @@ export default function FacturacionPage() {
   const [condicionVenta, setCondicionVenta] = useState("CONTADO");
   const [moneda, setMoneda] = useState("PYG");
   const [puntoExpedicion, setPuntoExpedicion] = useState("");
+  const [descuento, setDescuento] = useState<number>(0);
+  const [anticipo, setAnticipo] = useState<number>(0);
   const [productoId, setProductoId] = useState<string | null>(null);
   const [productoSelectorKey, setProductoSelectorKey] = useState(0);
   const [cantidadInputKey, setCantidadInputKey] = useState(0);
@@ -163,6 +171,10 @@ export default function FacturacionPage() {
     [items]
   );
 
+  const totalDescuento = Math.max(descuento, 0);
+  const totalAnticipo = Math.max(anticipo, 0);
+  const totalNeto = Math.max(totalAbonar - totalDescuento - totalAnticipo, 0);
+
   const resumen = useMemo(() => {
     const totalExenta = items.reduce((total, item) => total + item.exenta, 0);
     const subtotalIva5 = items.reduce((total, item) => total + item.iva5, 0);
@@ -185,8 +197,8 @@ export default function FacturacionPage() {
     [pagos]
   );
 
-  const saldoPendiente = Math.max(totalAbonar - totalPagado, 0);
-  const vuelto = Math.max(totalPagado - totalAbonar, 0);
+  const saldoPendiente = Math.max(totalNeto - totalPagado, 0);
+  const vuelto = Math.max(totalPagado - totalNeto, 0);
   const tableScrollHeight = `${Math.min(Math.max(items.length * 56 + 56, 180), 520)}px`;
 
   const cargarDatos = async () => {
@@ -574,6 +586,8 @@ export default function FacturacionPage() {
     setCondicionVenta("CONTADO");
     setMoneda("PYG");
     setPuntoExpedicion("");
+    setDescuento(0);
+    setAnticipo(0);
     limpiarCargaProducto();
     setItems([]);
     setPagos([]);
@@ -649,11 +663,11 @@ const crearFacturaPayload = () => {
       dSub10: resumen.subtotalIva10,
 
       dTotOpe: totalAbonar,
-      dTotDesc: 0,
+      dTotDesc: totalDescuento,
       dTotDescGlotem: 0,
-      dDescTotal: 0,
+      dDescTotal: totalDescuento,
 
-      dTotGralOpe: totalAbonar,
+      dTotGralOpe: totalNeto,
 
       dIVA5: resumen.liquidacionIva5,
       dIVA10: resumen.liquidacionIva10,
@@ -663,7 +677,8 @@ const crearFacturaPayload = () => {
       dBaseGrav10,
       dTBasGraIVA: dBaseGrav5 + dBaseGrav10,
 
-      dTotalGs: convertirAGuaranies(totalAbonar, moneda)
+      dAnticipo: totalAnticipo,
+      dTotalGs: convertirAGuaranies(totalNeto, moneda)
     },
 
     detalles: items.map((item) => {
@@ -740,7 +755,7 @@ const crearFacturaPayload = () => {
 };
 
 const confirmarCobro = async () => {
-  if (!pagos.length || totalPagado <= 0) {
+  if (totalNeto > 0 && (!pagos.length || totalPagado <= 0)) {
     Swal.fire("Atención", "Debe ingresar al menos una forma de pago", "warning");
     return;
   }
@@ -1065,11 +1080,12 @@ const confirmarCobro = async () => {
 
         <div className="col-6 sm:col-6 md:col-2">
           <label>Punto de expedición</label>
-          <InputText
+          <Dropdown
             className="w-full"
             value={puntoExpedicion}
-            placeholder="Ej: 001-001"
-            onChange={(e) => setPuntoExpedicion(e.target.value)}
+            options={puntosExpedicion}
+            placeholder="Seleccione punto"
+            onChange={(e) => setPuntoExpedicion(e.value)}
           />
         </div>
       </div>
@@ -1227,6 +1243,37 @@ const confirmarCobro = async () => {
         <aside className="facturacion-summary-panel">
           <div className="text-lg font-semibold mb-3">Resumen</div>
 
+          <div className="grid grid-cols-2 gap-2 mb-3">
+            <div>
+              <label>Descuento</label>
+              <InputNumber
+                className="w-full"
+                inputClassName="w-full"
+                value={descuento}
+                min={0}
+                locale="es-PY"
+                prefix={monedaPrefix(moneda)}
+                minFractionDigits={moneda === "PYG" ? 0 : 2}
+                maxFractionDigits={moneda === "PYG" ? 0 : 2}
+                onValueChange={(e) => setDescuento(Math.max(Number(e.value ?? 0), 0))}
+              />
+            </div>
+            <div>
+              <label>Anticipo</label>
+              <InputNumber
+                className="w-full"
+                inputClassName="w-full"
+                value={anticipo}
+                min={0}
+                locale="es-PY"
+                prefix={monedaPrefix(moneda)}
+                minFractionDigits={moneda === "PYG" ? 0 : 2}
+                maxFractionDigits={moneda === "PYG" ? 0 : 2}
+                onValueChange={(e) => setAnticipo(Math.max(Number(e.value ?? 0), 0))}
+              />
+            </div>
+          </div>
+
           <div className="facturacion-summary">
             <ResumenMonto label="Exenta" value={formatMoney(resumen.totalExenta, moneda)} />
             <ResumenMonto label="Subtotal IVA 5" value={formatMoney(resumen.subtotalIva5, moneda)} />
@@ -1239,7 +1286,10 @@ const confirmarCobro = async () => {
           <div className="facturacion-summary-total">
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: ".4rem" }}>
               <ResumenMonto label="Ítems registrados" value={items.length.toString()} destacado />
-              <ResumenMonto label="Total a abonar" value={formatMoney(totalAbonar, moneda)} destacado />
+              <ResumenMonto label="Total venta" value={formatMoney(totalAbonar, moneda)} />
+              <ResumenMonto label="Descuento" value={formatMoney(totalDescuento, moneda)} />
+              <ResumenMonto label="Anticipo" value={formatMoney(totalAnticipo, moneda)} />
+              <ResumenMonto label="Total a abonar" value={formatMoney(totalNeto, moneda)} destacado />
             </div>
           </div>
 
@@ -1263,7 +1313,10 @@ const confirmarCobro = async () => {
         onHide={() => setCobroVisible(false)}
       >
         <div className="facturacion-cobro-totales mb-4">
-          <ResumenMonto label="Total venta" value={formatMoney(totalAbonar, moneda)} destacado />
+          <ResumenMonto label="Total venta" value={formatMoney(totalAbonar, moneda)} />
+          <ResumenMonto label="Descuento" value={formatMoney(totalDescuento, moneda)} />
+          <ResumenMonto label="Anticipo" value={formatMoney(totalAnticipo, moneda)} />
+          <ResumenMonto label="Total neto" value={formatMoney(totalNeto, moneda)} destacado />
           <ResumenMonto label="Total pagado" value={formatMoney(totalPagado, moneda)} />
           <ResumenMonto label="Saldo pendiente" value={formatMoney(saldoPendiente, moneda)} />
           <ResumenMonto label="Vuelto" value={formatMoney(vuelto, moneda)} />

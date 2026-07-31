@@ -6,6 +6,7 @@ import {
   useEffect
 } from "react";
 import api from "../services/api";
+import { isTokenExpired } from "../utils/jwt";
 
 interface AuthContextType {
   user: any;
@@ -26,9 +27,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
 
     const storedUser = localStorage.getItem("user");
+    const accessToken = localStorage.getItem("accessToken");
 
-    if (storedUser) {
+    if (storedUser && accessToken && !isTokenExpired(accessToken)) {
       setUser(JSON.parse(storedUser));
+    } else if (storedUser || accessToken) {
+      localStorage.clear();
     }
 
     setLoading(false);
