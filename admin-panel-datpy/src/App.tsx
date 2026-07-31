@@ -15,6 +15,7 @@ import FacturasListadoPage from "./pages/facturacion/FacturasListadoPage";
 import AperturaCajaPage from "./pages/caja/AperturaCajaPage";
 import CuentaCorrientePage from "./pages/cuenta_corriente/CuentaCorrientePage";
 import MantenimientoPage from "./pages/MantenimientoPage";
+import ProtectedRoute from "./routes/ProtectedRoute";
 
 interface Props {
   toggleTheme: () => void;
@@ -27,7 +28,13 @@ function App({ toggleTheme = () => {} }: Partial<Props>) {
         <Route path="/" element={<Login />} />
         <Route path="/login" element={<Login />} />
 
-        <Route element={<AdminLayout toggleTheme={toggleTheme} />}>
+        <Route
+          element={
+            <ProtectedRoute>
+              <AdminLayout toggleTheme={toggleTheme} />
+            </ProtectedRoute>
+          }
+        >
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/marcas" element={<MarcasPage />} />
           <Route path="/familias" element={<FamiliasPage />} />
