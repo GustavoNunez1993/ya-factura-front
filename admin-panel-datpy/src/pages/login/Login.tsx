@@ -72,12 +72,27 @@ const handleSubmit = async () => {
 
       <div className="login-left">
 
-        <img
-          src={loginImage}
-          alt="login"
-        />
+        <div className="login-left-content">
 
+          <div className="login-brand">
+            <i className="pi pi-shield" />
+            <span>YaFactura</span>
+          </div>
 
+          <img
+            src={loginImage}
+            alt="login"
+          />
+
+          <div className="login-left-title">
+            Facturación electrónica simple y segura
+          </div>
+
+          <div className="login-left-sub">
+            Gestioná tus comprobantes, clientes y reportes desde un solo lugar.
+          </div>
+
+        </div>
 
       </div>
 
@@ -97,12 +112,13 @@ const handleSubmit = async () => {
 
           {/* EMAIL */}
 
-          <div className="mb-3">
+          <div className="login-field">
 
             <label>Email</label>
 
             <InputText
               className="w-full"
+              placeholder="nombre@empresa.com"
               value={form.email}
               onChange={(e) =>
                 setForm({ ...form, email: e.target.value })
@@ -113,13 +129,14 @@ const handleSubmit = async () => {
 
           {/* PASSWORD */}
 
-          <div className="mb-3">
+          <div className="login-field">
 
             <label>Password</label>
 
             <Password
               className="w-full"
               inputClassName="w-full"
+              placeholder="••••••••"
               style={{ width: "100%" }}
               inputStyle={{ width: "100%" }}
               feedback={false}
@@ -134,12 +151,13 @@ const handleSubmit = async () => {
 
           {/* RUC */}
 
-          <div className="mb-3">
+          <div className="login-field">
 
             <label>RUC Empresa</label>
 
             <InputText
               className="w-full"
+              placeholder="Ej: 80012345-6"
               value={form.ruc}
               onChange={(e) =>
                 setForm({ ...form, ruc: e.target.value })
@@ -150,7 +168,7 @@ const handleSubmit = async () => {
 
           {/* RECORDAR */}
 
-          <div className="flex align-items-center mb-3">
+          <div className="login-remember">
 
             <Checkbox
               checked={form.remember}
@@ -159,7 +177,7 @@ const handleSubmit = async () => {
               }
             />
 
-            <label className="ml-2">
+            <label>
               Recordar mis credenciales
             </label>
 
@@ -169,14 +187,17 @@ const handleSubmit = async () => {
 
           <Button
             label="Ingresar"
-            className="w-full"
             loading={loading}
             onClick={handleSubmit}
           />
-          <h5 className="mt-3">
+
+          <div className="login-register">
             ¿No tienes una cuenta? <a href="#">Regístrate aquí</a>
-          </h5>
-          <label>Todos los derechos reservados @DatpyInformatica </label>
+          </div>
+
+          <div className="login-footer">
+            Todos los derechos reservados @DatpyInformatica
+          </div>
 
         </div>
 

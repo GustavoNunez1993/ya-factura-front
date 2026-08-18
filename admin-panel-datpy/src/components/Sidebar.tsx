@@ -165,7 +165,14 @@ export default function Sidebar({ collapsed, mobileOpen, setMobileOpen }: Props)
         collapsed={isCollapsed}
         expandable
         open={openFacturacion}
-        active={isActive("/facturacion") || isActive("/apertura-caja") || isActive("/cierre-caja")}
+        active={
+          isActive("/facturacion") ||
+          isActive("/apertura-caja") ||
+          isActive("/cierre-caja") ||
+          isActive("/canales-venta") ||
+          isActive("/vendedores") ||
+          isActive("/cargos")
+        }
         onClick={() => setOpenFacturacion(!openFacturacion)}
       />
 
@@ -174,6 +181,9 @@ export default function Sidebar({ collapsed, mobileOpen, setMobileOpen }: Props)
           <SubItem icon="pi pi-receipt" label="Facturación" active={isActive("/facturacion")} onClick={() => go("/facturacion")} />
           <SubItem icon="pi pi-play-circle" label="Apertura Caja" active={isActive("/apertura-caja")} onClick={() => go("/apertura-caja")} />
           <SubItem icon="pi pi-stop-circle" label="Cierre Caja" active={isActive("/cierre-caja")} onClick={() => go("/cierre-caja")} />
+          <SubItem icon="pi pi-send" label="Canales de Venta" active={isActive("/canales-venta")} onClick={() => go("/canales-venta")} />
+          <SubItem icon="pi pi-id-card" label="Vendedores" active={isActive("/vendedores")} onClick={() => go("/vendedores")} />
+          <SubItem icon="pi pi-briefcase" label="Cargos" active={isActive("/cargos")} onClick={() => go("/cargos")} />
         </>
       )}
 

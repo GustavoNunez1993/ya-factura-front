@@ -1,46 +1,97 @@
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Chart } from "primereact/chart";
 import { Card } from "primereact/card";
 import { Button } from "primereact/button";
+import { Calendar } from "primereact/calendar";
 import { DataTable } from "primereact/datatable";
 import { Column } from "primereact/column";
 import { Tag } from "primereact/tag";
+import { Skeleton } from "primereact/skeleton";
+import Swal from "sweetalert2";
+import { DashboardService, type DashboardResumen, type FacturaResumen } from "../../services/DashboardService";
 import "./dashboard.css";
 
-type FacturaItem = {
-  id: number;
-  numero: string;
-  cliente: string;
-  fecha: string;
-  total: number;
-  estado: "Pagada" | "Pendiente" | "Anulada";
+const resumenVacio: DashboardResumen = {
+  ventasPeriodo: 0,
+  facturasEmitidasPeriodo: 0,
+  productosActivos: 0,
+  productosInactivos: 0,
+  clientesActivos: 0,
+  tendenciaVentas: [],
+  facturacionSemanal: [],
+  facturasRecientes: [],
+  facturasPendientes: []
 };
 
+const startOfDay = (date: Date) => {
+  const value = new Date(date);
+  value.setHours(0, 0, 0, 0);
+  return value;
+};
+
+const mismoDia = (a: Date, b: Date) =>
+  a.getFullYear() === b.getFullYear() &&
+  a.getMonth() === b.getMonth() &&
+  a.getDate() === b.getDate();
+
 export default function Dashboard() {
-  const ventasHoy = 0;
-  const facturasEmitidas = 0;
-  const productosActivos = 0;
-  const clientesActivos = 0;
+  const navigate = useNavigate();
 
-  const facturasRecientes: FacturaItem[] = [
-    { id: 1, numero: "001-001-0000001", cliente: "Cliente Demo 1", fecha: "30/03/2026", total: 350000, estado: "Pagada" },
-    { id: 2, numero: "001-001-0000002", cliente: "Cliente Demo 2", fecha: "30/03/2026", total: 125000, estado: "Pendiente" },
-    { id: 3, numero: "001-001-0000003", cliente: "Cliente Demo 3", fecha: "29/03/2026", total: 780000, estado: "Pagada" },
-    { id: 4, numero: "001-001-0000004", cliente: "Cliente Demo 4", fecha: "29/03/2026", total: 50000, estado: "Anulada" }
-  ];
+  const hoy = startOfDay(new Date());
 
-  const productosStockBajo = [
-    { nombre: "Producto A", stock: 3 },
-    { nombre: "Producto B", stock: 5 },
-    { nombre: "Producto C", stock: 2 },
-    { nombre: "Producto D", stock: 4 }
-  ];
+  const [resumen, setResumen] = useState<DashboardResumen>(resumenVacio);
+  const [loading, setLoading] = useState(true);
+  const [fechaDesde, setFechaDesde] = useState<Date>(hoy);
+  const [fechaHasta, setFechaHasta] = useState<Date>(hoy);
+
+  const esHoy = mismoDia(fechaDesde, hoy) && mismoDia(fechaHasta, hoy);
+
+  useEffect(() => {
+    let activo = true;
+
+    const cargar = async () => {
+      try {
+        setLoading(true);
+        const data = await DashboardService.getResumen(fechaDesde, fechaHasta);
+
+        if (activo) {
+          setResumen(data);
+        }
+      } catch (error) {
+        console.error("Error al cargar el dashboard:", error);
+
+        Swal.fire({
+          icon: "error",
+          title: "No se pudo cargar el dashboard",
+          text: "Intente nuevamente en unos instantes",
+          confirmButtonColor: "#4361ee"
+        });
+      } finally {
+        if (activo) {
+          setLoading(false);
+        }
+      }
+    };
+
+    cargar();
+
+    return () => {
+      activo = false;
+    };
+  }, [fechaDesde, fechaHasta]);
+
+  const irAHoy = () => {
+    setFechaDesde(hoy);
+    setFechaHasta(hoy);
+  };
 
   const lineData = {
-    labels: ["Ene", "Feb", "Mar", "Abr", "May", "Jun"],
+    labels: resumen.tendenciaVentas.map((item) => item.label),
     datasets: [
       {
         label: "Ventas",
-        data: [1200000, 1900000, 1500000, 2200000, 1800000, 2500000],
+        data: resumen.tendenciaVentas.map((item) => item.total),
         borderColor: "#6d28d9",
         backgroundColor: "rgba(109, 40, 217, 0.14)",
         tension: 0.4,
@@ -75,13 +126,13 @@ export default function Dashboard() {
   };
 
   const barData = {
-    labels: ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"],
+    labels: resumen.facturacionSemanal.map((item) => item.label),
     datasets: [
       {
         label: "Facturas",
         backgroundColor: "#22c55e",
         borderRadius: 8,
-        data: [3, 5, 2, 8, 4, 6, 1]
+        data: resumen.facturacionSemanal.map((item) => item.cantidad)
       }
     ]
   };
@@ -102,19 +153,23 @@ export default function Dashboard() {
         grid: { display: false }
       },
       y: {
-        ticks: { color: "#64748b" },
+        ticks: { color: "#64748b", precision: 0 },
         grid: { color: "#eef2f7" }
       }
     }
   };
 
+  const totalProductos = resumen.productosActivos + resumen.productosInactivos;
+
   const doughnutData = {
-    labels: ["Activos", "Inactivos", "Bajo Stock"],
+    labels: ["Activos", "Inactivos"],
     datasets: [
       {
-        data: [72, 18, 10],
-        backgroundColor: ["#7c3aed", "#cbd5e1", "#f59e0b"],
-        hoverBackgroundColor: ["#6d28d9", "#94a3b8", "#d97706"]
+        data: totalProductos > 0
+          ? [resumen.productosActivos, resumen.productosInactivos]
+          : [1, 0],
+        backgroundColor: ["#7c3aed", "#cbd5e1"],
+        hoverBackgroundColor: ["#6d28d9", "#94a3b8"]
       }
     ]
   };
@@ -134,12 +189,17 @@ export default function Dashboard() {
   };
 
   const formatGs = (value: number) => {
-    return new Intl.NumberFormat("es-PY").format(value);
+    return new Intl.NumberFormat("es-PY").format(Math.round(value));
   };
 
-  const estadoBodyTemplate = (rowData: FacturaItem) => {
+  const formatFecha = (value: string) => {
+    if (!value) return "-";
+    return new Date(value).toLocaleDateString("es-PY");
+  };
+
+  const estadoBodyTemplate = (rowData: FacturaResumen) => {
     const severity =
-      rowData.estado === "Pagada"
+      rowData.estado === "Pagado"
         ? "success"
         : rowData.estado === "Pendiente"
           ? "warning"
@@ -148,7 +208,11 @@ export default function Dashboard() {
     return <Tag value={rowData.estado} severity={severity} />;
   };
 
-  const totalBodyTemplate = (rowData: FacturaItem) => {
+  const fechaBodyTemplate = (rowData: FacturaResumen) => {
+    return formatFecha(rowData.dFeEmiDE);
+  };
+
+  const totalBodyTemplate = (rowData: FacturaResumen) => {
     return <span style={{ fontWeight: 600 }}>Gs. {formatGs(rowData.total)}</span>;
   };
 
@@ -157,9 +221,17 @@ export default function Dashboard() {
     boxShadow: "0 6px 24px rgba(15, 23, 42, 0.05)"
   };
 
-  const nuevaFactura = () => {
-    window.location.href = "/facturacion-create";
-  };
+  const kpiProps = (path: string) => ({
+    role: "button" as const,
+    tabIndex: 0,
+    onClick: () => navigate(path),
+    onKeyDown: (e: React.KeyboardEvent) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        navigate(path);
+      }
+    }
+  });
 
   return (
     <div className="p-3 md:p-4">
@@ -171,16 +243,45 @@ export default function Dashboard() {
           <span className="text-600">Resumen general del sistema administrativo</span>
         </div>
 
-        <div
-          className="flex align-items-center gap-2 px-3 py-2 border-round-xl"
-          style={{
-            background: "#ffffff",
-            border: "1px solid #e2e8f0",
-            boxShadow: "0 4px 20px rgba(15, 23, 42, 0.04)"
-          }}
-        >
-          <i className="pi pi-calendar text-primary" />
-          <span className="text-700">Hoy</span>
+        <div className="dashboard-daterange flex align-items-center gap-2 flex-wrap">
+          <div
+            className="flex align-items-center gap-2 px-3 py-2 border-round-xl"
+            style={{
+              background: "#ffffff",
+              border: "1px solid #e2e8f0",
+              boxShadow: "0 4px 20px rgba(15, 23, 42, 0.04)"
+            }}
+          >
+            <i className="pi pi-calendar text-primary" />
+
+            <Calendar
+              value={fechaDesde}
+              dateFormat="dd/mm/yy"
+              maxDate={fechaHasta}
+              inputClassName="dashboard-daterange-input"
+              onChange={(e) => e.value && setFechaDesde(startOfDay(e.value as Date))}
+            />
+
+            <span className="text-600">-</span>
+
+            <Calendar
+              value={fechaHasta}
+              dateFormat="dd/mm/yy"
+              minDate={fechaDesde}
+              maxDate={hoy}
+              inputClassName="dashboard-daterange-input"
+              onChange={(e) => e.value && setFechaHasta(startOfDay(e.value as Date))}
+            />
+          </div>
+
+          {!esHoy && (
+            <Button
+              label="Hoy"
+              size="small"
+              text
+              onClick={irAHoy}
+            />
+          )}
         </div>
       </div>
 
@@ -204,8 +305,7 @@ export default function Dashboard() {
               icon="pi pi-file-plus"
               className="w-full dashboard-action-btn"
               outlined
-              onClick={nuevaFactura}
-
+              onClick={() => navigate("/facturacion-create")}
             />
           </div>
 
@@ -215,6 +315,7 @@ export default function Dashboard() {
               icon="pi pi-user-plus"
               className="w-full dashboard-action-btn"
               outlined
+              onClick={() => navigate("/personas")}
             />
           </div>
 
@@ -224,6 +325,7 @@ export default function Dashboard() {
               icon="pi pi-box"
               className="w-full dashboard-action-btn"
               outlined
+              onClick={() => navigate("/productos")}
             />
           </div>
 
@@ -233,6 +335,7 @@ export default function Dashboard() {
               icon="pi pi-wallet"
               className="w-full dashboard-action-btn"
               outlined
+              onClick={() => navigate("/apertura-caja")}
             />
           </div>
         </div>
@@ -241,18 +344,23 @@ export default function Dashboard() {
       <div className="grid">
         <div className="col-12 md:col-6 xl:col-3">
           <div
-            className="dashboard-kpi p-4 border-round-2xl text-white h-full"
+            className="dashboard-kpi dashboard-kpi-clickable p-4 border-round-2xl text-white h-full"
             style={{
               background: "linear-gradient(135deg, #a100ff 0%, #7c3aed 100%)",
               boxShadow: "0 10px 25px rgba(124, 58, 237, 0.25)"
             }}
+            {...kpiProps("/facturacion")}
           >
             <div className="flex justify-content-between align-items-start mb-3">
               <div>
-                <div className="text-sm opacity-80 mb-2">Ventas Hoy</div>
-                <div style={{ fontSize: "2rem", fontWeight: 700 }}>
-                  Gs. {formatGs(ventasHoy)}
-                </div>
+                <div className="text-sm opacity-80 mb-2">{esHoy ? "Ventas Hoy" : "Ventas del Período"}</div>
+                {loading ? (
+                  <Skeleton width="7rem" height="2rem" className="dashboard-skeleton" />
+                ) : (
+                  <div style={{ fontSize: "2rem", fontWeight: 700 }}>
+                    Gs. {formatGs(resumen.ventasPeriodo)}
+                  </div>
+                )}
               </div>
 
               <div
@@ -267,22 +375,29 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <div className="text-sm opacity-80">Total vendido en la fecha actual</div>
+            <div className="text-sm opacity-80">
+              {esHoy ? "Total vendido en la fecha actual" : "Total vendido en el período seleccionado"}
+            </div>
           </div>
         </div>
 
         <div className="col-12 md:col-6 xl:col-3">
           <div
-            className="dashboard-kpi p-4 border-round-2xl text-white h-full"
+            className="dashboard-kpi dashboard-kpi-clickable p-4 border-round-2xl text-white h-full"
             style={{
               background: "linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%)",
               boxShadow: "0 10px 25px rgba(37, 99, 235, 0.22)"
             }}
+            {...kpiProps("/facturacion")}
           >
             <div className="flex justify-content-between align-items-start mb-3">
               <div>
                 <div className="text-sm opacity-80 mb-2">Facturas Emitidas</div>
-                <div style={{ fontSize: "2rem", fontWeight: 700 }}>{facturasEmitidas}</div>
+                {loading ? (
+                  <Skeleton width="4rem" height="2rem" className="dashboard-skeleton" />
+                ) : (
+                  <div style={{ fontSize: "2rem", fontWeight: 700 }}>{resumen.facturasEmitidasPeriodo}</div>
+                )}
               </div>
 
               <div
@@ -297,22 +412,29 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <div className="text-sm opacity-80">Documentos generados hoy</div>
+            <div className="text-sm opacity-80">
+              {esHoy ? "Documentos generados hoy" : "Documentos generados en el período"}
+            </div>
           </div>
         </div>
 
         <div className="col-12 md:col-6 xl:col-3">
           <div
-            className="dashboard-kpi p-4 border-round-2xl text-white h-full"
+            className="dashboard-kpi dashboard-kpi-clickable p-4 border-round-2xl text-white h-full"
             style={{
               background: "linear-gradient(135deg, #10b981 0%, #00d26a 100%)",
               boxShadow: "0 10px 25px rgba(16, 185, 129, 0.22)"
             }}
+            {...kpiProps("/productos")}
           >
             <div className="flex justify-content-between align-items-start mb-3">
               <div>
                 <div className="text-sm opacity-80 mb-2">Productos Activos</div>
-                <div style={{ fontSize: "2rem", fontWeight: 700 }}>{productosActivos}</div>
+                {loading ? (
+                  <Skeleton width="4rem" height="2rem" className="dashboard-skeleton" />
+                ) : (
+                  <div style={{ fontSize: "2rem", fontWeight: 700 }}>{resumen.productosActivos}</div>
+                )}
               </div>
 
               <div
@@ -333,16 +455,21 @@ export default function Dashboard() {
 
         <div className="col-12 md:col-6 xl:col-3">
           <div
-            className="dashboard-kpi p-4 border-round-2xl text-white h-full"
+            className="dashboard-kpi dashboard-kpi-clickable p-4 border-round-2xl text-white h-full"
             style={{
               background: "linear-gradient(135deg, #f59e0b 0%, #ff7a00 100%)",
               boxShadow: "0 10px 25px rgba(249, 115, 22, 0.22)"
             }}
+            {...kpiProps("/personas")}
           >
             <div className="flex justify-content-between align-items-start mb-3">
               <div>
                 <div className="text-sm opacity-80 mb-2">Clientes Activos</div>
-                <div style={{ fontSize: "2rem", fontWeight: 700 }}>{clientesActivos}</div>
+                {loading ? (
+                  <Skeleton width="4rem" height="2rem" className="dashboard-skeleton" />
+                ) : (
+                  <div style={{ fontSize: "2rem", fontWeight: 700 }}>{resumen.clientesActivos}</div>
+                )}
               </div>
 
               <div
@@ -357,7 +484,7 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <div className="text-sm opacity-80">Clientes habilitados en el sistema</div>
+            <div className="text-sm opacity-80">Clientes registrados en el sistema</div>
           </div>
         </div>
 
@@ -380,7 +507,11 @@ export default function Dashboard() {
             </div>
 
             <div style={{ height: "320px" }}>
-              <Chart type="line" data={lineData} options={lineOptions} />
+              {loading ? (
+                <Skeleton width="100%" height="100%" className="dashboard-skeleton" />
+              ) : (
+                <Chart type="line" data={lineData} options={lineOptions} />
+              )}
             </div>
           </Card>
         </div>
@@ -391,11 +522,19 @@ export default function Dashboard() {
               <div className="text-900" style={{ fontSize: "1.4rem", fontWeight: 700 }}>
                 Estado de Productos
               </div>
-              <div className="text-600">Resumen general de inventario</div>
+              <div className="text-600">Resumen general del catálogo</div>
             </div>
 
             <div style={{ height: "320px" }}>
-              <Chart type="doughnut" data={doughnutData} options={doughnutOptions} />
+              {loading ? (
+                <Skeleton width="100%" height="100%" className="dashboard-skeleton" />
+              ) : totalProductos === 0 ? (
+                <div className="flex align-items-center justify-content-center h-full text-600">
+                  Aún no hay productos cargados
+                </div>
+              ) : (
+                <Chart type="doughnut" data={doughnutData} options={doughnutOptions} />
+              )}
             </div>
           </Card>
         </div>
@@ -410,7 +549,11 @@ export default function Dashboard() {
             </div>
 
             <div style={{ height: "300px" }}>
-              <Chart type="bar" data={barData} options={barOptions} />
+              {loading ? (
+                <Skeleton width="100%" height="100%" className="dashboard-skeleton" />
+              ) : (
+                <Chart type="bar" data={barData} options={barOptions} />
+              )}
             </div>
           </Card>
         </div>
@@ -419,32 +562,47 @@ export default function Dashboard() {
           <Card className="border-round-2xl h-full" style={cardBaseStyle}>
             <div className="mb-4">
               <div className="text-900" style={{ fontSize: "1.4rem", fontWeight: 700 }}>
-                Stock Bajo
+                Facturas Pendientes
               </div>
-              <div className="text-600">Productos que requieren revisión</div>
+              <div className="text-600">
+                {esHoy ? "Cobros a realizar hoy" : "Cobros a realizar en el período seleccionado"}
+              </div>
             </div>
 
-            <div className="flex flex-column gap-3">
-              {productosStockBajo.map((item, index) => (
-                <div
-                  key={index}
-                  className="p-3 border-round-xl flex align-items-center justify-content-between"
-                  style={{ background: "#f8fafc", border: "1px solid #e2e8f0" }}
-                >
-                  <div className="flex align-items-center gap-3">
-                    <i className="pi pi-exclamation-triangle text-orange-500" />
-                    <div>
-                      <div className="text-900 font-medium">{item.nombre}</div>
-                      <small className="text-600">Revisar reposición</small>
+            {loading ? (
+              <div className="flex flex-column gap-3">
+                {[1, 2, 3, 4].map((item) => (
+                  <Skeleton key={item} width="100%" height="4rem" className="dashboard-skeleton" />
+                ))}
+              </div>
+            ) : resumen.facturasPendientes.length === 0 ? (
+              <div className="flex flex-column align-items-center justify-content-center text-center py-4">
+                <i className="pi pi-check-circle text-green-500 mb-2" style={{ fontSize: "1.8rem" }} />
+                <span className="text-600">No hay facturas pendientes de cobro</span>
+              </div>
+            ) : (
+              <div className="flex flex-column gap-3">
+                {resumen.facturasPendientes.map((item) => (
+                  <div
+                    key={item.id}
+                    className="p-3 border-round-xl flex align-items-center justify-content-between flex-wrap gap-2"
+                    style={{ background: "#f8fafc", border: "1px solid #e2e8f0" }}
+                  >
+                    <div className="flex align-items-center gap-3">
+                      <i className="pi pi-exclamation-triangle text-orange-500" />
+                      <div>
+                        <div className="text-900 font-medium">{item.clienteRazonSocial || "Sin cliente"}</div>
+                        <small className="text-600">{item.dNumDoc} · {formatFecha(item.dFeEmiDE)}</small>
+                      </div>
                     </div>
-                  </div>
 
-                  <span className="font-semibold text-orange-600">
-                    Stock: {item.stock}
-                  </span>
-                </div>
-              ))}
-            </div>
+                    <span className="font-semibold text-orange-600">
+                      Gs. {formatGs(item.total)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </Card>
         </div>
 
@@ -455,7 +613,9 @@ export default function Dashboard() {
                 <div className="text-900" style={{ fontSize: "1.4rem", fontWeight: 700 }}>
                   Últimas Facturas
                 </div>
-                <div className="text-600">Resumen de documentos recientes</div>
+                <div className="text-600">
+                  {esHoy ? "Resumen de documentos recientes" : "Documentos del período seleccionado"}
+                </div>
               </div>
 
               <Button
@@ -464,19 +624,21 @@ export default function Dashboard() {
                 iconPos="right"
                 outlined
                 className="dashboard-table-btn"
+                onClick={() => navigate("/facturacion")}
               />
             </div>
 
             <DataTable
-              value={facturasRecientes}
+              value={resumen.facturasRecientes}
+              loading={loading}
               responsiveLayout="scroll"
               stripedRows
               className="p-datatable-sm"
-              emptyMessage="No hay facturas recientes"
+              emptyMessage="No hay facturas en el período seleccionado"
             >
-              <Column field="numero" header="Número" />
-              <Column field="cliente" header="Cliente" />
-              <Column field="fecha" header="Fecha" />
+              <Column field="dNumDoc" header="Número" />
+              <Column field="clienteRazonSocial" header="Cliente" />
+              <Column header="Fecha" body={fechaBodyTemplate} />
               <Column header="Total" body={totalBodyTemplate} />
               <Column header="Estado" body={estadoBodyTemplate} />
             </DataTable>

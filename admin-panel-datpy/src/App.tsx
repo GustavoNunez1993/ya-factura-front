@@ -7,12 +7,17 @@ import FamiliasPage from "./pages/familia/FamiliasPage";
 import SubFamiliasPage from "./pages/sub_familias/SubFamiliasPage";
 import ProductosPage from "./pages/productos/ProductosPage";
 import PersonasPage from "./pages/clientes/PersonasPage";
+import BancosPage from "./pages/bancos/BancosPage";
+import ProveedoresPage from "./pages/proveedores/ProveedoresPage";
 import FacturacionPage from "./pages/facturacion/FacturacionPage";
 import TallesPage from "./pages/talles/TallesPage";
 import ColoresPage from "./pages/colores/ColoresPage";
 import SeleccionProductoColorTallePage from "./pages/SeleccionProductoColorTallePage";
 import FacturasListadoPage from "./pages/facturacion/FacturasListadoPage";
 import AperturaCajaPage from "./pages/caja/AperturaCajaPage";
+import CanalesVentaPage from "./pages/canales_venta/CanalesVentaPage";
+import VendedoresPage from "./pages/vendedores/VendedoresPage";
+import CargosPage from "./pages/cargos/CargosPage";
 import CuentaCorrientePage from "./pages/cuenta_corriente/CuentaCorrientePage";
 import MantenimientoPage from "./pages/MantenimientoPage";
 import ProtectedRoute from "./routes/ProtectedRoute";
@@ -44,9 +49,14 @@ function App({ toggleTheme = () => {} }: Partial<Props>) {
           <Route path="/seleccion-producto" element={<SeleccionProductoColorTallePage />} />
           <Route path="/productos" element={<ProductosPage />} />
           <Route path="/personas" element={<PersonasPage />} />
+          <Route path="/bancos" element={<BancosPage />} />
+          <Route path="/proveedores" element={<ProveedoresPage />} />
           <Route path="/facturacion" element={<FacturasListadoPage />} />
           <Route path="/facturacion-create" element={<FacturacionPage />} />
           <Route path="/apertura-caja" element={<AperturaCajaPage />} />
+          <Route path="/canales-venta" element={<CanalesVentaPage />} />
+          <Route path="/vendedores" element={<VendedoresPage />} />
+          <Route path="/cargos" element={<CargosPage />} />
           <Route
             path="/cuenta-corriente/clientes"
             element={<CuentaCorrientePage tipo="clientes" />}

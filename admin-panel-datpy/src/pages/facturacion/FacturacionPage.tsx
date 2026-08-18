@@ -13,6 +13,8 @@ import { InputText } from "primereact/inputtext";
 import { PersonaService } from "../../services/PersonaService";
 import { ProductosService } from "../../services/ProductosService";
 import { FacturaService } from "../../services/FacturaService";
+import { CanalVentaService, type CanalVenta } from "../../services/CanalVentaService";
+import { VendedorService, type Vendedor } from "../../services/VendedorService";
 import { abrirBoletaVenta } from "../../comprobantes/invoices";
 
 interface Persona {
@@ -140,8 +142,12 @@ export default function FacturacionPage() {
 
   const [clientes, setClientes] = useState<Persona[]>([]);
   const [productos, setProductos] = useState<Producto[]>([]);
+  const [canalesVenta, setCanalesVenta] = useState<CanalVenta[]>([]);
+  const [vendedores, setVendedores] = useState<Vendedor[]>([]);
   const [fecha, setFecha] = useState<Date>(hoy);
   const [clienteId, setClienteId] = useState<string | null>(null);
+  const [canalVentaId, setCanalVentaId] = useState<string | null>(null);
+  const [vendedorSeleccionadoId, setVendedorSeleccionadoId] = useState<string | null>(null);
   const [condicionVenta, setCondicionVenta] = useState("CONTADO");
   const [moneda, setMoneda] = useState("PYG");
   const [puntoExpedicion, setPuntoExpedicion] = useState("");
@@ -203,17 +209,23 @@ export default function FacturacionPage() {
 
   const cargarDatos = async () => {
     try {
-      const [clientesRes, productosRes] = await Promise.all([
+      const [clientesRes, productosRes, canalesRes, vendedoresRes] = await Promise.all([
         PersonaService.getPaginated(0, 1000, ""),
-        ProductosService.getPaginated(0, 1000, "")
+        ProductosService.getPaginated(0, 1000, ""),
+        CanalVentaService.getAll(),
+        VendedorService.getAll()
       ]);
 
       setClientes(clientesRes?.content ?? []);
       setProductos(productosRes?.content ?? []);
+      setCanalesVenta(canalesRes ?? []);
+      setVendedores(vendedoresRes ?? []);
     } catch (error) {
       console.error("Error cargando datos de facturación", error);
       setClientes([]);
       setProductos([]);
+      setCanalesVenta([]);
+      setVendedores([]);
     }
   };
 
@@ -583,6 +595,8 @@ export default function FacturacionPage() {
   const limpiarFacturacion = () => {
     setFecha(hoy);
     setClienteId(null);
+    setCanalVentaId(null);
+    setVendedorSeleccionadoId(null);
     setCondicionVenta("CONTADO");
     setMoneda("PYG");
     setPuntoExpedicion("");
@@ -654,6 +668,8 @@ const crearFacturaPayload = () => {
 
     saldo: saldoPendiente,
     vendedorId: null,
+    vendedorSeleccionadoId,
+    canalVentaId,
     dOrdCompra: null,
 
     subtotal: {
@@ -1086,6 +1102,38 @@ const confirmarCobro = async () => {
             options={puntosExpedicion}
             placeholder="Seleccione punto"
             onChange={(e) => setPuntoExpedicion(e.value)}
+          />
+        </div>
+
+        <div className="col-6 sm:col-6 md:col-3">
+          <label>Canal de venta</label>
+          <Dropdown
+            className="w-full"
+            value={canalVentaId}
+            options={canalesVenta}
+            optionLabel="descripcion"
+            optionValue="id"
+            placeholder="Seleccione canal"
+            filter
+            showClear
+            emptyMessage="No hay canales cargados"
+            onChange={(e) => setCanalVentaId(e.value)}
+          />
+        </div>
+
+        <div className="col-6 sm:col-6 md:col-3">
+          <label>Vendedor</label>
+          <Dropdown
+            className="w-full"
+            value={vendedorSeleccionadoId}
+            options={vendedores}
+            optionLabel="nombre"
+            optionValue="id"
+            placeholder="Seleccione vendedor"
+            filter
+            showClear
+            emptyMessage="No hay vendedores cargados"
+            onChange={(e) => setVendedorSeleccionadoId(e.value)}
           />
         </div>
       </div>
