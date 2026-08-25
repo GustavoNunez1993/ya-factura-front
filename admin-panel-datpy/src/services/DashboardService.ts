@@ -1,6 +1,8 @@
+import { CuentaCorrienteService, type CobroReciente, type FormaPagoResumen } from "./CuentaCorrienteService";
 import { FacturaService } from "./FacturaService";
 import { PersonaService } from "./PersonaService";
 import { ProductosService } from "./ProductosService";
+import { StockService, type StockItem } from "./StockService";
 
 export interface FacturaResumen {
   id: string;
@@ -26,6 +28,11 @@ export interface DashboardResumen {
   facturacionSemanal: { label: string; cantidad: number }[];
   facturasRecientes: FacturaResumen[];
   facturasPendientes: FacturaResumen[];
+  cobrosPeriodo: number;
+  saldoPendienteCobro: number;
+  cobrosPorFormaPago: FormaPagoResumen[];
+  ultimosCobros: CobroReciente[];
+  productosPorVencer: StockItem[];
 }
 
 const MAX_REGISTROS = 5000;
@@ -102,13 +109,20 @@ export const DashboardService = {
 
     const rangoDentroDeTendencia = desde.getTime() >= inicioTendencia.getTime();
 
-    const [facturasSeisMeses, productos, clientesPage, facturasPeriodoExterno] = await Promise.all([
+    const [facturasSeisMeses, productos, clientesPage, facturasPeriodoExterno, cobrosResumen, productosPorVencer] = await Promise.all([
       fetchTodasLasFacturas(formatFecha(inicioTendencia), formatFecha(hoy)),
       fetchTodosLosProductos(),
       PersonaService.getPaginated(0, 1, ""),
       rangoDentroDeTendencia
         ? Promise.resolve<FacturaResumen[] | null>(null)
-        : fetchTodasLasFacturas(formatFecha(desde), formatFecha(hasta))
+        : fetchTodasLasFacturas(formatFecha(desde), formatFecha(hasta)),
+      CuentaCorrienteService.getResumenCobros(formatFecha(desde), formatFecha(hasta)).catch(() => ({
+        totalCobrado: 0,
+        totalPendiente: 0,
+        porFormaPago: [],
+        ultimosCobros: []
+      })),
+      StockService.getPorVencer(15).catch(() => [])
     ]);
 
     const facturasPeriodo = rangoDentroDeTendencia
@@ -177,7 +191,12 @@ export const DashboardService = {
       tendenciaVentas,
       facturacionSemanal,
       facturasRecientes: facturasPeriodoOrdenadas.slice(0, 5),
-      facturasPendientes
+      facturasPendientes,
+      cobrosPeriodo: Number(cobrosResumen.totalCobrado) || 0,
+      saldoPendienteCobro: Number(cobrosResumen.totalPendiente) || 0,
+      cobrosPorFormaPago: cobrosResumen.porFormaPago ?? [],
+      ultimosCobros: cobrosResumen.ultimosCobros ?? [],
+      productosPorVencer: productosPorVencer ?? []
     };
   }
 };

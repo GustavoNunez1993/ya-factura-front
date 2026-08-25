@@ -3,12 +3,11 @@ import { useState, useEffect } from "react";
 
 import Sidebar from "../components/Sidebar";
 import Topbar from "./Topbar";
+import { useTheme } from "../context/ThemeContext";
 
-interface Props {
-  toggleTheme: () => void;
-}
-
-export default function AdminLayout({ toggleTheme }: Props) {
+export default function AdminLayout() {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -25,7 +24,6 @@ export default function AdminLayout({ toggleTheme }: Props) {
         toggleSidebar={() =>
           isMobile ? setMobileOpen((prev) => !prev) : setCollapsed((prev) => !prev)
         }
-        toggleTheme={toggleTheme}
       />
 
       <div className="flex flex-1 overflow-hidden">
@@ -48,17 +46,18 @@ export default function AdminLayout({ toggleTheme }: Props) {
         <main
           className="flex-1 overflow-auto"
           style={{
-            background: "#f4f6f9",
+            background: isDark ? "#0b1220" : "#f4f6f9",
             padding: isMobile ? "10px" : "16px"
           }}
         >
           <div style={{ width: "100%", maxWidth: "100%", margin: "0 auto" }}>
             <div
               style={{
-                background: "#ffffff",
+                background: isDark ? "#111827" : "#ffffff",
+                color: isDark ? "#e2e8f0" : undefined,
                 borderRadius: "10px",
                 padding: isMobile ? "12px" : "20px",
-                border: "1px solid #e5e7eb",
+                border: `1px solid ${isDark ? "#1f2937" : "#e5e7eb"}`,
                 boxShadow: "0 4px 12px rgba(0,0,0,0.05)"
               }}
             >

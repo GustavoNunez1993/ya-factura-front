@@ -636,23 +636,23 @@ export default function ProveedoresPage() {
             {isMobile ? (
                 <>
                     {proveedores.length === 0 ? (
-                        <p style={{ textAlign: "center", color: "#9ca3af", padding: "24px 0" }}>No existen proveedores registrados</p>
+                        <p style={{ textAlign: "center", color: "var(--text-color-secondary)", padding: "24px 0" }}>No existen proveedores registrados</p>
                     ) : proveedores.map((item) => (
-                        <div key={item.id} style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: "12px 14px", marginBottom: 8, background: "#fff" }}>
+                        <div key={item.id} style={{ border: "1px solid var(--surface-border)", borderRadius: 8, padding: "12px 14px", marginBottom: 8, background: "var(--surface-card)" }}>
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
                                 <div style={{ flex: 1 }}>
                                     <div style={{ fontWeight: 600, fontSize: 14 }}>{item.descripcion}</div>
-                                    <div style={{ fontSize: 12, color: "#6b7280", marginTop: 3, display: "flex", flexWrap: "wrap", gap: "4px 12px" }}>
+                                    <div style={{ fontSize: 12, color: "var(--text-color-secondary)", marginTop: 3, display: "flex", flexWrap: "wrap", gap: "4px 12px" }}>
                                         {item.nroDocumento && <span>Doc: {item.nroDocumento}</span>}
                                         {item.ruc && <span>RUC: {item.ruc}{item.dv ? "-" + item.dv : ""}</span>}
                                     </div>
-                                    <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2, display: "flex", flexWrap: "wrap", gap: "4px 12px" }}>
+                                    <div style={{ fontSize: 12, color: "var(--text-color-secondary)", marginTop: 2, display: "flex", flexWrap: "wrap", gap: "4px 12px" }}>
                                         {item.telefono && <span>Tel: {item.telefono}</span>}
                                         {item.celular && <span>Cel: {item.celular}</span>}
                                     </div>
-                                    {item.email && <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>{item.email}</div>}
+                                    {item.email && <div style={{ fontSize: 12, color: "var(--text-color-secondary)", marginTop: 2 }}>{item.email}</div>}
                                     {item.banco?.descripcion && (
-                                        <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>
+                                        <div style={{ fontSize: 12, color: "var(--text-color-secondary)", marginTop: 2 }}>
                                             Banco: {item.banco.descripcion}{item.nroCuenta ? ` (Cta. ${item.nroCuenta})` : ""}
                                         </div>
                                     )}
@@ -1103,8 +1103,8 @@ export default function ProveedoresPage() {
                         <table className="w-full" style={{ borderCollapse: "collapse" }}>
                             <thead>
                                 <tr>
-                                    <th style={{ textAlign: "left", padding: "0.5rem 0.75rem", borderBottom: "1px solid #dee2e6" }}>Día</th>
-                                    <th style={{ textAlign: "center", padding: "0.5rem 0.75rem", borderBottom: "1px solid #dee2e6", width: "100px" }}>Visita</th>
+                                    <th style={{ textAlign: "left", padding: "0.5rem 0.75rem", borderBottom: "1px solid var(--surface-border)" }}>Día</th>
+                                    <th style={{ textAlign: "center", padding: "0.5rem 0.75rem", borderBottom: "1px solid var(--surface-border)", width: "100px" }}>Visita</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -1114,10 +1114,10 @@ export default function ProveedoresPage() {
                                     return (
                                         <tr
                                             key={dia.id}
-                                            style={{ backgroundColor: index % 2 === 0 ? "transparent" : "#f8f9fa" }}
+                                            style={{ backgroundColor: index % 2 === 0 ? "transparent" : "var(--surface-hover)" }}
                                         >
-                                            <td style={{ padding: "0.5rem 0.75rem", borderBottom: "1px solid #eee" }}>{dia.descripcion}</td>
-                                            <td style={{ padding: "0.5rem 0.75rem", borderBottom: "1px solid #eee", textAlign: "center" }}>
+                                            <td style={{ padding: "0.5rem 0.75rem", borderBottom: "1px solid var(--surface-border)" }}>{dia.descripcion}</td>
+                                            <td style={{ padding: "0.5rem 0.75rem", borderBottom: "1px solid var(--surface-border)", textAlign: "center" }}>
                                                 <Checkbox
                                                     inputId={`dia-visita-${dia.id}`}
                                                     checked={marcado}

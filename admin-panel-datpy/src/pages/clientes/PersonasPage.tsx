@@ -601,21 +601,21 @@ const adaptarPersonaDesdeApi = (data: any): Persona => ({
             {isMobile ? (
                 <>
                     {personas.length === 0 ? (
-                        <p style={{ textAlign: "center", color: "#9ca3af", padding: "24px 0" }}>No existen personas registradas</p>
+                        <p style={{ textAlign: "center", color: "var(--text-color-secondary)", padding: "24px 0" }}>No existen personas registradas</p>
                     ) : personas.map((item) => (
-                        <div key={item.id} style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: "12px 14px", marginBottom: 8, background: "#fff" }}>
+                        <div key={item.id} style={{ border: "1px solid var(--surface-border)", borderRadius: 8, padding: "12px 14px", marginBottom: 8, background: "var(--surface-card)" }}>
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
                                 <div style={{ flex: 1 }}>
                                     <div style={{ fontWeight: 600, fontSize: 14 }}>{item.razonSocial}</div>
-                                    <div style={{ fontSize: 12, color: "#6b7280", marginTop: 3, display: "flex", flexWrap: "wrap", gap: "4px 12px" }}>
+                                    <div style={{ fontSize: 12, color: "var(--text-color-secondary)", marginTop: 3, display: "flex", flexWrap: "wrap", gap: "4px 12px" }}>
                                         {item.nroDocumento && <span>Doc: {item.nroDocumento}</span>}
                                         {item.ruc && <span>RUC: {item.ruc}{item.dv ? "-" + item.dv : ""}</span>}
                                     </div>
-                                    <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2, display: "flex", flexWrap: "wrap", gap: "4px 12px" }}>
+                                    <div style={{ fontSize: 12, color: "var(--text-color-secondary)", marginTop: 2, display: "flex", flexWrap: "wrap", gap: "4px 12px" }}>
                                         {item.telefono && <span>Tel: {item.telefono}</span>}
                                         {item.celular && <span>Cel: {item.celular}</span>}
                                     </div>
-                                    {item.email && <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>{item.email}</div>}
+                                    {item.email && <div style={{ fontSize: 12, color: "var(--text-color-secondary)", marginTop: 2 }}>{item.email}</div>}
                                 </div>
                                 <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
                                     {estadoBodyTemplate(item)}

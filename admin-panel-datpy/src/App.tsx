@@ -18,15 +18,19 @@ import AperturaCajaPage from "./pages/caja/AperturaCajaPage";
 import CanalesVentaPage from "./pages/canales_venta/CanalesVentaPage";
 import VendedoresPage from "./pages/vendedores/VendedoresPage";
 import CargosPage from "./pages/cargos/CargosPage";
+import CondicionesVentaPage from "./pages/condiciones_venta/CondicionesVentaPage";
 import CuentaCorrientePage from "./pages/cuenta_corriente/CuentaCorrientePage";
+import StockPage from "./pages/stock/StockPage";
+import TransferenciasPage from "./pages/stock/TransferenciasPage";
+import DepositosPage from "./pages/depositos/DepositosPage";
 import MantenimientoPage from "./pages/MantenimientoPage";
+import PerfilPage from "./pages/perfil/PerfilPage";
+import TimbradosPage from "./pages/timbrados/TimbradosPage";
+import EmpresaConfigPage from "./pages/empresa/EmpresaConfigPage";
+import TenantsFirmadorPage from "./pages/firmador_tenants/TenantsFirmadorPage";
 import ProtectedRoute from "./routes/ProtectedRoute";
 
-interface Props {
-  toggleTheme: () => void;
-}
-
-function App({ toggleTheme = () => {} }: Partial<Props>) {
+function App() {
   return (
     <BrowserRouter>
       <Routes>
@@ -36,7 +40,7 @@ function App({ toggleTheme = () => {} }: Partial<Props>) {
         <Route
           element={
             <ProtectedRoute>
-              <AdminLayout toggleTheme={toggleTheme} />
+              <AdminLayout />
             </ProtectedRoute>
           }
         >
@@ -57,6 +61,11 @@ function App({ toggleTheme = () => {} }: Partial<Props>) {
           <Route path="/canales-venta" element={<CanalesVentaPage />} />
           <Route path="/vendedores" element={<VendedoresPage />} />
           <Route path="/cargos" element={<CargosPage />} />
+          <Route path="/condiciones-venta" element={<CondicionesVentaPage />} />
+          <Route path="/timbrados" element={<TimbradosPage />} />
+          <Route path="/empresa" element={<EmpresaConfigPage />} />
+          <Route path="/firmador-tenants" element={<TenantsFirmadorPage />} />
+          <Route path="/perfil" element={<PerfilPage />} />
           <Route
             path="/cuenta-corriente/clientes"
             element={<CuentaCorrientePage tipo="clientes" />}
@@ -65,6 +74,9 @@ function App({ toggleTheme = () => {} }: Partial<Props>) {
             path="/cuenta-corriente/proveedores"
             element={<CuentaCorrientePage tipo="proveedores" />}
           />
+          <Route path="/stock" element={<StockPage />} />
+          <Route path="/stock/transferencias" element={<TransferenciasPage />} />
+          <Route path="/depositos" element={<DepositosPage />} />
           <Route path="/paises" element={<ProductosPage />} />
           <Route path="/departamentos" element={<ProductosPage />} />
           <Route path="/distritos" element={<ProductosPage />} />

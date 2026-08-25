@@ -10,6 +10,7 @@ import { Tag } from "primereact/tag";
 import { Skeleton } from "primereact/skeleton";
 import Swal from "sweetalert2";
 import { DashboardService, type DashboardResumen, type FacturaResumen } from "../../services/DashboardService";
+import { CajaAperturaCierreService } from "../../services/CajaAperturaCierreService";
 import "./dashboard.css";
 
 const resumenVacio: DashboardResumen = {
@@ -21,7 +22,12 @@ const resumenVacio: DashboardResumen = {
   tendenciaVentas: [],
   facturacionSemanal: [],
   facturasRecientes: [],
-  facturasPendientes: []
+  facturasPendientes: [],
+  cobrosPeriodo: 0,
+  saldoPendienteCobro: 0,
+  cobrosPorFormaPago: [],
+  ultimosCobros: [],
+  productosPorVencer: []
 };
 
 const startOfDay = (date: Date) => {
@@ -84,6 +90,31 @@ export default function Dashboard() {
   const irAHoy = () => {
     setFechaDesde(hoy);
     setFechaHasta(hoy);
+  };
+
+  const [loadingNuevaFactura, setLoadingNuevaFactura] = useState(false);
+
+  const irANuevaFactura = async () => {
+    try {
+      setLoadingNuevaFactura(true);
+      await CajaAperturaCierreService.getCajaAbierta(1);
+      navigate("/facturacion-create");
+    } catch {
+      Swal.fire({
+        icon: "warning",
+        title: "Sin apertura de caja",
+        text: "No hay una apertura de caja activa para el día de hoy. Realice la apertura de caja antes de emitir facturas.",
+        confirmButtonText: "Ir a apertura de caja",
+        showCancelButton: true,
+        cancelButtonText: "Cancelar"
+      }).then((result) => {
+        if (result.isConfirmed) {
+          navigate("/apertura-caja");
+        }
+      });
+    } finally {
+      setLoadingNuevaFactura(false);
+    }
   };
 
   const lineData = {
@@ -188,6 +219,19 @@ export default function Dashboard() {
     }
   };
 
+  const formaPagoPalette = ["#0d9488", "#f59e0b", "#6d28d9", "#0ea5e9", "#f43f5e", "#64748b", "#22c55e", "#eab308"];
+
+  const cobrosFormaPagoData = {
+    labels: resumen.cobrosPorFormaPago.map((item) => item.descripcion),
+    datasets: [
+      {
+        data: resumen.cobrosPorFormaPago.map((item) => item.monto),
+        backgroundColor: resumen.cobrosPorFormaPago.map((_, i) => formaPagoPalette[i % formaPagoPalette.length]),
+        hoverBackgroundColor: resumen.cobrosPorFormaPago.map((_, i) => formaPagoPalette[i % formaPagoPalette.length])
+      }
+    ]
+  };
+
   const formatGs = (value: number) => {
     return new Intl.NumberFormat("es-PY").format(Math.round(value));
   };
@@ -195,6 +239,15 @@ export default function Dashboard() {
   const formatFecha = (value: string) => {
     if (!value) return "-";
     return new Date(value).toLocaleDateString("es-PY");
+  };
+
+  const diasParaVencer = (vencimiento: string | null) => {
+    if (!vencimiento) return null;
+
+    const hoyLocal = startOfDay(new Date());
+    const fechaVencimiento = startOfDay(new Date(vencimiento));
+
+    return Math.round((fechaVencimiento.getTime() - hoyLocal.getTime()) / (1000 * 60 * 60 * 24));
   };
 
   const estadoBodyTemplate = (rowData: FacturaResumen) => {
@@ -305,7 +358,8 @@ export default function Dashboard() {
               icon="pi pi-file-plus"
               className="w-full dashboard-action-btn"
               outlined
-              onClick={() => navigate("/facturacion-create")}
+              loading={loadingNuevaFactura}
+              onClick={irANuevaFactura}
             />
           </div>
 
@@ -488,6 +542,143 @@ export default function Dashboard() {
           </div>
         </div>
 
+        <div className="col-12">
+          <Card className="border-round-2xl" style={cardBaseStyle}>
+            <div className="mb-4">
+              <div className="text-900" style={{ fontSize: "1.4rem", fontWeight: 700 }}>
+                Cobros
+              </div>
+              <div className="text-600">
+                {esHoy ? "Pagos recibidos y saldo por cobrar hoy" : "Pagos recibidos y saldo por cobrar en el período seleccionado"}
+              </div>
+            </div>
+
+            <div className="grid">
+              <div className="col-12 md:col-6 xl:col-3">
+                <div
+                  className="dashboard-kpi p-4 border-round-2xl text-white h-full"
+                  style={{
+                    background: "linear-gradient(135deg, #0d9488 0%, #14b8a6 100%)",
+                    boxShadow: "0 10px 25px rgba(13, 148, 136, 0.22)"
+                  }}
+                >
+                  <div className="flex justify-content-between align-items-start mb-3">
+                    <div>
+                      <div className="text-sm opacity-80 mb-2">Cobros del Período</div>
+                      {loading ? (
+                        <Skeleton width="7rem" height="2rem" className="dashboard-skeleton" />
+                      ) : (
+                        <div style={{ fontSize: "2rem", fontWeight: 700 }}>
+                          Gs. {formatGs(resumen.cobrosPeriodo)}
+                        </div>
+                      )}
+                    </div>
+
+                    <div
+                      className="flex align-items-center justify-content-center border-circle"
+                      style={{ width: 48, height: 48, background: "rgba(255,255,255,0.18)" }}
+                    >
+                      <i className="pi pi-money-bill" style={{ fontSize: "1.2rem" }} />
+                    </div>
+                  </div>
+
+                  <div className="text-sm opacity-80">
+                    {esHoy ? "Total cobrado en la fecha actual" : "Total cobrado en el período seleccionado"}
+                  </div>
+                </div>
+              </div>
+
+              <div className="col-12 md:col-6 xl:col-3">
+                <div
+                  className="dashboard-kpi dashboard-kpi-clickable p-4 border-round-2xl text-white h-full"
+                  style={{
+                    background: "linear-gradient(135deg, #e11d48 0%, #f43f5e 100%)",
+                    boxShadow: "0 10px 25px rgba(225, 29, 72, 0.22)"
+                  }}
+                  {...kpiProps("/cuenta-corriente/clientes")}
+                >
+                  <div className="flex justify-content-between align-items-start mb-3">
+                    <div>
+                      <div className="text-sm opacity-80 mb-2">Saldo Pendiente de Cobro</div>
+                      {loading ? (
+                        <Skeleton width="7rem" height="2rem" className="dashboard-skeleton" />
+                      ) : (
+                        <div style={{ fontSize: "2rem", fontWeight: 700 }}>
+                          Gs. {formatGs(resumen.saldoPendienteCobro)}
+                        </div>
+                      )}
+                    </div>
+
+                    <div
+                      className="flex align-items-center justify-content-center border-circle"
+                      style={{ width: 48, height: 48, background: "rgba(255,255,255,0.18)" }}
+                    >
+                      <i className="pi pi-exclamation-circle" style={{ fontSize: "1.2rem" }} />
+                    </div>
+                  </div>
+
+                  <div className="text-sm opacity-80">Saldo total de facturas a crédito sin cobrar</div>
+                </div>
+              </div>
+
+              <div className="col-12 xl:col-6">
+                <div className="text-900 font-medium mb-2">Cobros por Forma de Pago</div>
+
+                <div style={{ height: "180px" }}>
+                  {loading ? (
+                    <Skeleton width="100%" height="100%" className="dashboard-skeleton" />
+                  ) : resumen.cobrosPorFormaPago.length === 0 ? (
+                    <div className="flex align-items-center justify-content-center h-full text-600">
+                      Aún no hay cobros registrados en el período
+                    </div>
+                  ) : (
+                    <Chart type="doughnut" data={cobrosFormaPagoData} options={doughnutOptions} />
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <div className="text-900 font-medium mb-3">Últimos Cobros</div>
+
+              {loading ? (
+                <div className="flex flex-column gap-3">
+                  {[1, 2, 3].map((item) => (
+                    <Skeleton key={item} width="100%" height="3.5rem" className="dashboard-skeleton" />
+                  ))}
+                </div>
+              ) : resumen.ultimosCobros.length === 0 ? (
+                <div className="flex flex-column align-items-center justify-content-center text-center py-4">
+                  <i className="pi pi-inbox text-400 mb-2" style={{ fontSize: "1.8rem" }} />
+                  <span className="text-600">No hay cobros registrados en el período</span>
+                </div>
+              ) : (
+                <div className="flex flex-column gap-3">
+                  {resumen.ultimosCobros.map((item) => (
+                    <div
+                      key={item.id}
+                      className="p-3 border-round-xl flex align-items-center justify-content-between flex-wrap gap-2"
+                      style={{ background: "#f8fafc", border: "1px solid #e2e8f0" }}
+                    >
+                      <div className="flex align-items-center gap-3">
+                        <i className="pi pi-check-circle text-teal-500" />
+                        <div>
+                          <div className="text-900 font-medium">{item.clienteNombre || "Sin cliente"}</div>
+                          <small className="text-600">{item.facturaNumero} · {formatFecha(item.fecha)}</small>
+                        </div>
+                      </div>
+
+                      <span className="font-semibold text-teal-600">
+                        Gs. {formatGs(item.monto)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </Card>
+        </div>
+
         <div className="col-12 xl:col-8">
           <Card className="border-round-2xl h-full" style={cardBaseStyle}>
             <div className="flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
@@ -601,6 +792,72 @@ export default function Dashboard() {
                     </span>
                   </div>
                 ))}
+              </div>
+            )}
+          </Card>
+        </div>
+
+        <div className="col-12">
+          <Card className="border-round-2xl" style={cardBaseStyle}>
+            <div className="flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+              <div>
+                <div className="text-900" style={{ fontSize: "1.4rem", fontWeight: 700 }}>
+                  Productos por Vencer
+                </div>
+                <div className="text-600">Stock con vencimiento en los próximos 15 días</div>
+              </div>
+
+              <Button
+                label="Ver Stock"
+                icon="pi pi-arrow-right"
+                iconPos="right"
+                outlined
+                className="dashboard-table-btn"
+                onClick={() => navigate("/stock")}
+              />
+            </div>
+
+            {loading ? (
+              <div className="flex flex-column gap-3">
+                {[1, 2, 3].map((item) => (
+                  <Skeleton key={item} width="100%" height="4rem" className="dashboard-skeleton" />
+                ))}
+              </div>
+            ) : resumen.productosPorVencer.length === 0 ? (
+              <div className="flex flex-column align-items-center justify-content-center text-center py-4">
+                <i className="pi pi-check-circle text-green-500 mb-2" style={{ fontSize: "1.8rem" }} />
+                <span className="text-600">No hay productos por vencer en los próximos 15 días</span>
+              </div>
+            ) : (
+              <div className="flex flex-column gap-3">
+                {resumen.productosPorVencer.map((item) => {
+                  const dias = diasParaVencer(item.vencimiento);
+                  const vencido = dias !== null && dias < 0;
+
+                  return (
+                    <div
+                      key={item.id}
+                      className="p-3 border-round-xl flex align-items-center justify-content-between flex-wrap gap-2"
+                      style={{ background: "#f8fafc", border: "1px solid #e2e8f0" }}
+                    >
+                      <div className="flex align-items-center gap-3">
+                        <i className={`pi ${vencido ? "pi-times-circle text-red-500" : "pi-clock text-orange-500"}`} />
+                        <div>
+                          <div className="text-900 font-medium">{item.productoDescripcion}</div>
+                          <small className="text-600">
+                            {item.depositoNombre}
+                            {item.lote ? ` · Lote: ${item.lote}` : ""} · Vto: {formatFecha(item.vencimiento ?? "")}
+                          </small>
+                        </div>
+                      </div>
+
+                      <Tag
+                        value={vencido ? `Vencido hace ${Math.abs(dias!)} día${Math.abs(dias!) === 1 ? "" : "s"}` : `Vence en ${dias} día${dias === 1 ? "" : "s"}`}
+                        severity={vencido ? "danger" : "warning"}
+                      />
+                    </div>
+                  );
+                })}
               </div>
             )}
           </Card>
