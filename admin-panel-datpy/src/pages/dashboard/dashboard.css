@@ -34,12 +34,63 @@
 }
 
 .p-datatable .p-datatable-thead > tr > th {
-  background: #f8fafc;
-  color: #334155;
-  border-color: #e2e8f0;
+  background: var(--surface-section);
+  color: var(--text-color);
+  border-color: var(--surface-border);
   font-weight: 700;
 }
 
 .p-datatable .p-datatable-tbody > tr > td {
-  border-color: #eef2f7;
+  border-color: var(--surface-border);
+}
+
+.dashboard-skeleton.p-skeleton {
+  background-color: #e2e8f0;
+}
+
+.dashboard-skeleton.p-skeleton::after {
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.7), transparent);
+}
+
+.dashboard-kpi .dashboard-skeleton.p-skeleton {
+  background-color: rgba(255, 255, 255, 0.22);
+}
+
+.dashboard-kpi .dashboard-skeleton.p-skeleton::after {
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+}
+
+.dashboard-kpi-clickable {
+  cursor: pointer;
+}
+
+.dashboard-kpi-clickable:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+}
+
+.dashboard-daterange-input {
+  width: 92px;
+  border: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+  color: #334155;
+  font-size: 0.9rem;
+}
+
+@media (max-width: 767px) {
+  .p-card .p-card-body,
+  .p-card .p-card-content {
+    padding: 1rem;
+  }
+
+  .dashboard-action-btn {
+    height: 2.9rem;
+    font-size: 0.92rem;
+  }
+
+  .dashboard-daterange-input {
+    width: 78px;
+  }
 }

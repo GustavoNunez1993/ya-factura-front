@@ -4,20 +4,21 @@ import Swal from "sweetalert2";
 import { Button } from "primereact/button";
 import { Dialog } from "primereact/dialog";
 import { InputText } from "primereact/inputtext";
-import { InputNumber } from "primereact/inputnumber";
 import { Dropdown } from "primereact/dropdown";
 import { DataTable } from "primereact/datatable";
 import { Column } from "primereact/column";
-import { Checkbox } from "primereact/checkbox";
 import { RadioButton } from "primereact/radiobutton";
+import { Checkbox } from "primereact/checkbox";
+import { TabView, TabPanel } from "primereact/tabview";
 
-import { PersonaService } from "../../services/PersonaService";
+import { ProveedorService } from "../../services/ProveedorService";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import { CiudadesService } from "../../services/CiudadesService";
 import { PaisService } from "../../services/PaisService";
 import { DepartamentoService } from "../../services/DepartamentoService";
 import { DistritoService } from "../../services/DistritoService";
 import { TipoDocumentoService } from "../../services/TipoDocumentoService";
+import { BancoService } from "../../services/BancoService";
 
 interface Opcion {
     id: string | number;
@@ -25,18 +26,17 @@ interface Opcion {
     descripcion: string;
 }
 
-interface PersonaRelacion {
+interface ProveedorRelacion {
     id: string | number;
     descripcion?: string;
 }
 
-interface Persona {
+interface Proveedor {
     id?: string;
     naturaleza: number | null;
     tipoContribuyente: number | null;
-    razonSocial: string;
+    descripcion: string;
     direccion: string;
-    nroCasa: number | null;
     telefono: string;
     celular: string;
     email: string;
@@ -44,25 +44,27 @@ interface Persona {
     dv: string;
     otroTipoDocumento: string;
     nroDocumento: string;
-    emailCopia: string;
-    emailAdicional: string;
-    tipoOperacion: number | null;
-    diplomatico: boolean;
     tipoDocumentoId: string | number | null;
     ciudadId: string | null;
     paisId: string | null;
     departamentoId?: string | null;
     distritoId?: string | null;
+    bancoId: string | null;
+    nroCuenta: string;
+    encargadoVisitas: string;
+    telefonoEncargado: string;
+    diasVisita: string[];
     empresaId: string;
-    tipoDocumento?: PersonaRelacion | null;
-    ciudad?: PersonaRelacion | null;
-    pais?: PersonaRelacion | null;
-    departamento?: PersonaRelacion | null;
-    distrito?: PersonaRelacion | null;
+    tipoDocumento?: ProveedorRelacion | null;
+    ciudad?: ProveedorRelacion | null;
+    pais?: ProveedorRelacion | null;
+    departamento?: ProveedorRelacion | null;
+    distrito?: ProveedorRelacion | null;
+    banco?: ProveedorRelacion | null;
     active?: boolean;
 }
 
-export default function PersonasPage() {
+export default function ProveedoresPage() {
     const empresaId = localStorage.getItem("empresaId") || "";
 
     const TIPO_CONTRIBUYENTE = {
@@ -72,12 +74,21 @@ export default function PersonasPage() {
 
     const TIPO_DOCUMENTO_OTRO = 7;
 
-    const crearFormularioInicial = (): Persona => ({
+    const DIAS_SEMANA = [
+        { id: "LUNES", descripcion: "Lunes" },
+        { id: "MARTES", descripcion: "Martes" },
+        { id: "MIERCOLES", descripcion: "Miércoles" },
+        { id: "JUEVES", descripcion: "Jueves" },
+        { id: "VIERNES", descripcion: "Viernes" },
+        { id: "SABADO", descripcion: "Sábado" },
+        { id: "DOMINGO", descripcion: "Domingo" }
+    ];
+
+    const crearFormularioInicial = (): Proveedor => ({
         naturaleza: 1,
         tipoContribuyente: TIPO_CONTRIBUYENTE.CONTRIBUYENTE,
-        razonSocial: "",
+        descripcion: "",
         direccion: "",
-        nroCasa: null,
         telefono: "",
         celular: "",
         email: "",
@@ -85,25 +96,27 @@ export default function PersonasPage() {
         dv: "",
         otroTipoDocumento: "",
         nroDocumento: "",
-        emailCopia: "",
-        emailAdicional: "",
         tipoDocumentoId: null,
         ciudadId: null,
         paisId: null,
         departamentoId: null,
         distritoId: null,
+        bancoId: null,
+        nroCuenta: "",
+        encargadoVisitas: "",
+        telefonoEncargado: "",
+        diasVisita: [],
         empresaId,
-        tipoOperacion: null,
-        diplomatico: false,
         tipoDocumento: null,
         ciudad: null,
         pais: null,
         departamento: null,
         distrito: null,
+        banco: null,
         active: true
     });
 
-    const [personas, setPersonas] = useState<Persona[]>([]);
+    const [proveedores, setProveedores] = useState<Proveedor[]>([]);
     const [total, setTotal] = useState(0);
 
     const [page, setPage] = useState(0);
@@ -114,127 +127,139 @@ export default function PersonasPage() {
 
     const [open, setOpen] = useState(false);
     const [viewMode, setViewMode] = useState(false);
-    const [editing, setEditing] = useState<Persona | null>(null);
+    const [editing, setEditing] = useState<Proveedor | null>(null);
 
     const [ciudades, setCiudades] = useState<Opcion[]>([]);
     const [paises, setPaises] = useState<Opcion[]>([]);
     const [departamentos, setDepartamentos] = useState<Opcion[]>([]);
     const [distritos, setDistritos] = useState<Opcion[]>([]);
     const [tiposDocumento, setTiposDocumento] = useState<Opcion[]>([]);
+    const [bancos, setBancos] = useState<Opcion[]>([]);
 
-    const [form, setForm] = useState<Persona>(crearFormularioInicial());
+    const [form, setForm] = useState<Proveedor>(crearFormularioInicial());
 
-    const tiposOperacion = [
-        { id: 1, descripcion: "Negocio a Negocio" },
-        { id: 2, descripcion: "Negocio a Consumidor final" },
-        { id: 3, descripcion: "Negocio a Gobierno" },
-        { id: 4, descripcion: "Negocio a Extranjero" }
-    ];
+    const parseDiasVisita = (valor: any): string[] => {
+        if (Array.isArray(valor)) return valor;
+        if (typeof valor !== "string" || !valor.trim()) return [];
 
-const adaptarPersonaDesdeApi = (data: any): Persona => ({
-    id: data.id,
-    naturaleza: data.naturaleza ?? 1,
-    tipoContribuyente: data.tipoContribuyente ?? TIPO_CONTRIBUYENTE.CONTRIBUYENTE,
-    razonSocial: data.razonSocial ?? "",
-    direccion: data.direccion ?? "",
-    nroCasa: data.nroCasa ?? null,
-    telefono: data.telefono ?? "",
-    celular: data.celular ?? "",
-    email: data.email ?? "",
-    ruc: data.ruc ?? "",
-    dv: data.dv ?? "",
-    otroTipoDocumento: data.otroTipoDocumento ?? "",
-    nroDocumento: data.nroDocumento ?? "",
-    emailCopia: data.emailCopia ?? "",
-    emailAdicional: data.emailAdicional ?? "",
+        try {
+            const parseado = JSON.parse(valor);
+            return Array.isArray(parseado) ? parseado : [];
+        } catch {
+            return [];
+        }
+    };
 
-    tipoDocumentoId: data.tipoDocumentoId ?? data.tipoDocumento?.id ?? null,
-    ciudadId: data.ciudadId ?? data.ciudad?.id ?? null,
-    paisId: data.paisId ?? data.pais?.id ?? null,
-    departamentoId: data.departamentoId ?? data.departamento?.id ?? null,
-    distritoId: data.distritoId ?? data.distrito?.id ?? null,
-    empresaId: data.empresaId ?? data.empresa?.id ?? empresaId,
+    const adaptarProveedorDesdeApi = (data: any): Proveedor => ({
+        id: data.id,
+        naturaleza: data.naturaleza ?? 1,
+        tipoContribuyente: data.tipoContribuyente ?? TIPO_CONTRIBUYENTE.CONTRIBUYENTE,
+        descripcion: data.descripcion ?? "",
+        direccion: data.direccion ?? "",
+        telefono: data.telefono ?? "",
+        celular: data.celular ?? "",
+        email: data.email ?? "",
+        ruc: data.ruc ?? "",
+        dv: data.dv ?? "",
+        otroTipoDocumento: data.otroTipoDocumento ?? "",
+        nroDocumento: data.nroDocumento ?? "",
 
-    tipoOperacion: data.tipoOperacion ?? null,
-    diplomatico: data.diplomatico ?? false,
+        tipoDocumentoId: data.tipoDocumentoId ?? data.tipoDocumento?.id ?? null,
+        ciudadId: data.ciudadId ?? data.ciudad?.id ?? null,
+        paisId: data.paisId ?? data.pais?.id ?? null,
+        departamentoId: data.departamentoId ?? data.departamento?.id ?? null,
+        distritoId: data.distritoId ?? data.distrito?.id ?? null,
+        bancoId: data.bancoId ?? data.banco?.id ?? null,
+        nroCuenta: data.nroCuenta ?? "",
+        encargadoVisitas: data.encargadoVisitas ?? "",
+        telefonoEncargado: data.telefonoEncargado ?? "",
+        diasVisita: parseDiasVisita(data.diasVisita),
+        empresaId: data.empresaId ?? data.empresa?.id ?? empresaId,
 
-    tipoDocumento: data.tipoDocumento ?? (
-        data.tipoDocumentoId
-            ? { id: data.tipoDocumentoId, descripcion: data.tipoDocumentoDescripcion }
-            : null
-    ),
+        tipoDocumento: data.tipoDocumento ?? (
+            data.tipoDocumentoId
+                ? { id: data.tipoDocumentoId, descripcion: data.tipoDocumentoDescripcion }
+                : null
+        ),
 
-    ciudad: data.ciudad ?? (
-        data.ciudadId
-            ? { id: data.ciudadId, descripcion: data.ciudadDescripcion }
-            : null
-    ),
+        ciudad: data.ciudad ?? (
+            data.ciudadId
+                ? { id: data.ciudadId, descripcion: data.ciudadDescripcion }
+                : null
+        ),
 
-    pais: data.pais ?? (
-        data.paisId
-            ? { id: data.paisId, descripcion: data.paisDescripcion }
-            : null
-    ),
+        pais: data.pais ?? (
+            data.paisId
+                ? { id: data.paisId, descripcion: data.paisDescripcion }
+                : null
+        ),
 
-    departamento: data.departamento ?? (
-        data.departamentoId
-            ? { id: data.departamentoId, descripcion: data.departamentoDescripcion }
-            : null
-    ),
+        departamento: data.departamento ?? (
+            data.departamentoId
+                ? { id: data.departamentoId, descripcion: data.departamentoDescripcion }
+                : null
+        ),
 
-    distrito: data.distrito ?? null,
-    active: data.active ?? true
-});
+        distrito: data.distrito ?? null,
 
- const buildPayload = (persona: Persona) => ({
-    tipoDocumentoId: persona.tipoDocumentoId || null,
-    ciudadId: persona.ciudadId || null,
-    paisId: persona.paisId || null,
-    departamentoId: persona.departamentoId || null,
-    empresaId: persona.empresaId || empresaId,
+        banco: data.banco ?? (
+            data.bancoId
+                ? { id: data.bancoId, descripcion: data.bancoDescripcion }
+                : null
+        ),
 
-    naturaleza: persona.naturaleza,
-    tipoContribuyente: persona.tipoContribuyente,
-    razonSocial: persona.razonSocial,
-    direccion: persona.direccion,
-    nroCasa: persona.nroCasa,
-    telefono: persona.telefono,
-    celular: persona.celular,
-    email: persona.email,
-    ruc: persona.ruc,
-    dv: persona.dv,
-    otroTipoDocumento: persona.otroTipoDocumento,
-    nroDocumento: persona.nroDocumento,
-    emailCopia: persona.emailCopia,
-    emailAdicional: persona.emailAdicional,
+        active: data.active ?? true
+    });
 
-    tipoOperacion: persona.tipoOperacion,
-    diplomatico: persona.diplomatico
-});
+    const buildPayload = (proveedor: Proveedor) => ({
+        tipoDocumentoId: proveedor.tipoDocumentoId || null,
+        ciudadId: proveedor.ciudadId || null,
+        paisId: proveedor.paisId || null,
+        departamentoId: proveedor.departamentoId || null,
+        bancoId: proveedor.bancoId || null,
+        empresaId: proveedor.empresaId || empresaId,
+        encargadoVisitas: proveedor.encargadoVisitas,
+        telefonoEncargado: proveedor.telefonoEncargado,
+        diasVisita: JSON.stringify(proveedor.diasVisita ?? []),
+
+        naturaleza: proveedor.naturaleza,
+        tipoContribuyente: proveedor.tipoContribuyente,
+        descripcion: proveedor.descripcion,
+        direccion: proveedor.direccion,
+        telefono: proveedor.telefono,
+        celular: proveedor.celular,
+        email: proveedor.email,
+        ruc: proveedor.ruc,
+        dv: proveedor.dv,
+        otroTipoDocumento: proveedor.otroTipoDocumento,
+        nroDocumento: proveedor.nroDocumento,
+        nroCuenta: proveedor.nroCuenta
+    });
 
     const esTipoDocumentoOtro = (tipoDocumentoId: string | number | null) => {
         const tipoDocumento = tiposDocumento.find((item) => item.id === tipoDocumentoId);
         return Number(tipoDocumento?.codigo) === TIPO_DOCUMENTO_OTRO;
     };
 
-    const cargarPersonas = async () => {
+    const cargarProveedores = async () => {
         try {
-            const res = await PersonaService.getPaginated(page, size, search);
-            const content = (res?.content ?? []).map((item: any) => adaptarPersonaDesdeApi(item));
-            setPersonas(content);
+            const res = await ProveedorService.getPaginated(page, size, search);
+            const content = (res?.content ?? []).map((item: any) => adaptarProveedorDesdeApi(item));
+            setProveedores(content);
             setTotal(res?.totalElements ?? 0);
         } catch (error) {
-            console.error("Error cargando personas", error);
-            setPersonas([]);
+            console.error("Error cargando proveedores", error);
+            setProveedores([]);
             setTotal(0);
         }
     };
 
     const cargarCatalogos = async () => {
         try {
-            const [paisesRes, tiposDocumentoRes] = await Promise.all([
+            const [paisesRes, tiposDocumentoRes, bancosRes] = await Promise.all([
                 PaisService.getAll(),
-                TipoDocumentoService.getAll()
+                TipoDocumentoService.getAll(),
+                BancoService.getAll()
             ]);
 
             setPaises(
@@ -252,10 +277,19 @@ const adaptarPersonaDesdeApi = (data: any): Persona => ({
                     descripcion: item.descripcion
                 }))
             );
+
+            setBancos(
+                (bancosRes ?? []).map((item: any) => ({
+                    id: item.id,
+                    codigo: item.codigo,
+                    descripcion: item.descripcion
+                }))
+            );
         } catch (error) {
             console.error("Error cargando catálogos", error);
             setPaises([]);
             setTiposDocumento([]);
+            setBancos([]);
         }
     };
 
@@ -309,7 +343,7 @@ const adaptarPersonaDesdeApi = (data: any): Persona => ({
 
     useEffect(() => {
         if (empresaId) {
-            cargarPersonas();
+            cargarProveedores();
         }
     }, [page, search, empresaId]);
 
@@ -361,10 +395,10 @@ const adaptarPersonaDesdeApi = (data: any): Persona => ({
         setOpen(true);
     };
 
-    const ver = async (persona: Persona) => {
+    const ver = async (proveedor: Proveedor) => {
         try {
-            const data = await PersonaService.getById(persona.id!);
-            const adaptado = adaptarPersonaDesdeApi(data);
+            const data = await ProveedorService.getById(proveedor.id!);
+            const adaptado = adaptarProveedorDesdeApi(data);
 
             setViewMode(true);
             setEditing(adaptado);
@@ -384,14 +418,14 @@ const adaptarPersonaDesdeApi = (data: any): Persona => ({
 
             setOpen(true);
         } catch (error) {
-            Swal.fire("Error", "No se pudo cargar la persona", "error");
+            Swal.fire("Error", "No se pudo cargar el proveedor", "error");
         }
     };
 
-    const editar = async (persona: Persona) => {
+    const editar = async (proveedor: Proveedor) => {
         try {
-            const data = await PersonaService.getById(persona.id!);
-            const adaptado = adaptarPersonaDesdeApi(data);
+            const data = await ProveedorService.getById(proveedor.id!);
+            const adaptado = adaptarProveedorDesdeApi(data);
 
             setViewMode(false);
             setEditing(adaptado);
@@ -411,7 +445,7 @@ const adaptarPersonaDesdeApi = (data: any): Persona => ({
 
             setOpen(true);
         } catch (error) {
-            Swal.fire("Error", "No se pudo cargar la persona", "error");
+            Swal.fire("Error", "No se pudo cargar el proveedor", "error");
         }
     };
 
@@ -435,12 +469,12 @@ const adaptarPersonaDesdeApi = (data: any): Persona => ({
             }
 
             if (!form.naturaleza) {
-                Swal.fire("Atención", "Debe seleccionar la naturaleza de la persona", "warning");
+                Swal.fire("Atención", "Debe seleccionar la naturaleza del proveedor", "warning");
                 return;
             }
 
-            if (!form.razonSocial.trim()) {
-                Swal.fire("Atención", "La razón social es obligatoria", "warning");
+            if (!form.descripcion.trim()) {
+                Swal.fire("Atención", "La descripción es obligatoria", "warning");
                 return;
             }
 
@@ -479,18 +513,19 @@ const adaptarPersonaDesdeApi = (data: any): Persona => ({
             const payload = buildPayload(form);
 
             if (editing?.id) {
-                await PersonaService.update(editing.id, payload);
-                Swal.fire("Actualizado", "Persona actualizada correctamente", "success");
+                await ProveedorService.update(editing.id, payload);
+                Swal.fire("Actualizado", "Proveedor actualizado correctamente", "success");
             } else {
-                await PersonaService.create(payload);
-                Swal.fire("Creado", "Persona creada correctamente", "success");
+                await ProveedorService.create(payload);
+                Swal.fire("Creado", "Proveedor creado correctamente", "success");
             }
 
             cerrarDialog();
-            cargarPersonas();
-        } catch (error) {
-            console.error("Error guardando persona", error);
-            Swal.fire("Error", "No se pudo guardar la persona", "error");
+            cargarProveedores();
+        } catch (error: any) {
+            console.error("Error guardando proveedor", error);
+            const mensaje = error?.response?.data?.message || "No se pudo guardar el proveedor";
+            Swal.fire("Error", mensaje, "error");
         }
     };
 
@@ -498,27 +533,27 @@ const adaptarPersonaDesdeApi = (data: any): Persona => ({
         if (!id) return;
 
         const result = await Swal.fire({
-            title: "¿Eliminar persona?",
-            text: "Esta acción no se puede deshacer",
+            title: "¿Dar de baja el proveedor?",
+            text: "El proveedor pasará a estado inactivo",
             icon: "warning",
             showCancelButton: true,
-            confirmButtonText: "Sí, eliminar",
+            confirmButtonText: "Sí, dar de baja",
             cancelButtonText: "Cancelar"
         });
 
         if (!result.isConfirmed) return;
 
         try {
-            await PersonaService.remove(id);
-            Swal.fire("Eliminado", "Persona eliminada correctamente", "success");
-            cargarPersonas();
+            await ProveedorService.remove(id);
+            Swal.fire("Dado de baja", "Proveedor dado de baja correctamente", "success");
+            cargarProveedores();
         } catch (error) {
-            console.error("Error eliminando persona", error);
-            Swal.fire("Error", "No se pudo eliminar", "error");
+            console.error("Error dando de baja al proveedor", error);
+            Swal.fire("Error", "No se pudo dar de baja", "error");
         }
     };
 
-    const accionesTemplate = (rowData: Persona) => (
+    const accionesTemplate = (rowData: Proveedor) => (
         <div className="flex gap-2 justify-content-center">
             <Button
                 icon="pi pi-eye"
@@ -541,14 +576,14 @@ const adaptarPersonaDesdeApi = (data: any): Persona => ({
                 rounded
                 text
                 severity="danger"
-                tooltip="Eliminar"
+                tooltip="Dar de baja"
                 onClick={() => eliminar(rowData.id)}
             />
         </div>
     );
 
-    const estadoBodyTemplate = (rowData: Persona) => {
-        const activo = rowData.active;
+    const estadoBodyTemplate = (rowData: Proveedor) => {
+        const activo = rowData.active !== false;
 
         return (
             <span
@@ -569,7 +604,7 @@ const adaptarPersonaDesdeApi = (data: any): Persona => ({
         );
     };
 
-    const rucCompletoTemplate = (rowData: Persona) => {
+    const rucCompletoTemplate = (rowData: Proveedor) => {
         if (!rowData.ruc) return "-";
         return `${rowData.ruc}${rowData.dv ? "-" + rowData.dv : ""}`;
     };
@@ -582,17 +617,17 @@ const adaptarPersonaDesdeApi = (data: any): Persona => ({
         <div className="card">
             <div className="flex justify-content-between align-items-center mb-3" style={{ flexWrap: "wrap", gap: "10px" }}>
                 <div>
-                    <h2 className="m-0">Personas</h2>
-                    <small className="text-color-secondary">Gestión de personas</small>
+                    <h2 className="m-0">Proveedores</h2>
+                    <small className="text-color-secondary">Gestión de proveedores</small>
                 </div>
-                <Button label="Nueva Persona" icon="pi pi-plus" severity="success" onClick={abrirNuevo} />
+                <Button label="Nuevo Proveedor" icon="pi pi-plus" severity="success" onClick={abrirNuevo} />
             </div>
 
             <div className="p-input-icon-left mb-3 w-full">
                 <i className="pi pi-search" />
                 <InputText
                     className="w-full"
-                    placeholder="Buscar por razón social, documento, ruc..."
+                    placeholder="Buscar por descripción, documento, ruc..."
                     value={search}
                     onChange={(e) => { setPage(0); setSearch(e.target.value); }}
                 />
@@ -600,13 +635,13 @@ const adaptarPersonaDesdeApi = (data: any): Persona => ({
 
             {isMobile ? (
                 <>
-                    {personas.length === 0 ? (
-                        <p style={{ textAlign: "center", color: "var(--text-color-secondary)", padding: "24px 0" }}>No existen personas registradas</p>
-                    ) : personas.map((item) => (
+                    {proveedores.length === 0 ? (
+                        <p style={{ textAlign: "center", color: "var(--text-color-secondary)", padding: "24px 0" }}>No existen proveedores registrados</p>
+                    ) : proveedores.map((item) => (
                         <div key={item.id} style={{ border: "1px solid var(--surface-border)", borderRadius: 8, padding: "12px 14px", marginBottom: 8, background: "var(--surface-card)" }}>
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
                                 <div style={{ flex: 1 }}>
-                                    <div style={{ fontWeight: 600, fontSize: 14 }}>{item.razonSocial}</div>
+                                    <div style={{ fontWeight: 600, fontSize: 14 }}>{item.descripcion}</div>
                                     <div style={{ fontSize: 12, color: "var(--text-color-secondary)", marginTop: 3, display: "flex", flexWrap: "wrap", gap: "4px 12px" }}>
                                         {item.nroDocumento && <span>Doc: {item.nroDocumento}</span>}
                                         {item.ruc && <span>RUC: {item.ruc}{item.dv ? "-" + item.dv : ""}</span>}
@@ -616,6 +651,11 @@ const adaptarPersonaDesdeApi = (data: any): Persona => ({
                                         {item.celular && <span>Cel: {item.celular}</span>}
                                     </div>
                                     {item.email && <div style={{ fontSize: 12, color: "var(--text-color-secondary)", marginTop: 2 }}>{item.email}</div>}
+                                    {item.banco?.descripcion && (
+                                        <div style={{ fontSize: 12, color: "var(--text-color-secondary)", marginTop: 2 }}>
+                                            Banco: {item.banco.descripcion}{item.nroCuenta ? ` (Cta. ${item.nroCuenta})` : ""}
+                                        </div>
+                                    )}
                                 </div>
                                 <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
                                     {estadoBodyTemplate(item)}
@@ -633,7 +673,7 @@ const adaptarPersonaDesdeApi = (data: any): Persona => ({
             ) : (
                 <div style={{ overflowX: "auto" }}>
                 <DataTable
-                    value={personas}
+                    value={proveedores}
                     paginator
                     rows={size}
                     totalRecords={total}
@@ -643,10 +683,10 @@ const adaptarPersonaDesdeApi = (data: any): Persona => ({
                     onPage={(e) => setPage(e.page ?? 0)}
                     stripedRows
                     showGridlines
-                    emptyMessage="No existen personas registradas"
+                    emptyMessage="No existen proveedores registrados"
                     currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} registros"
                 >
-                    <Column field="razonSocial" header="Razón Social" sortable />
+                    <Column field="descripcion" header="Descripción" sortable />
 
                     <Column
                         field="nroDocumento"
@@ -673,25 +713,8 @@ const adaptarPersonaDesdeApi = (data: any): Persona => ({
                         style={{ width: "130px", textAlign: "center" }}
                     />
 
-                    <Column field="email" header="Email" style={{ minWidth: "220px" }} />
+                    <Column field="email" header="Email" style={{ minWidth: "200px" }} />
 
-                    <Column
-                        header="Tipo Documento"
-                        body={(rowData: Persona) => rowData.tipoDocumento?.descripcion || "-"}
-                        style={{ width: "180px" }}
-                    />
-
-                    <Column
-                        header="Ciudad"
-                        body={(rowData: Persona) => rowData.ciudad?.descripcion || "-"}
-                        style={{ width: "160px" }}
-                    />
-
-                    <Column
-                        header="País"
-                        body={(rowData: Persona) => rowData.pais?.descripcion || "-"}
-                        style={{ width: "160px" }}
-                    />
 
                     <Column
                         field="active"
@@ -710,7 +733,7 @@ const adaptarPersonaDesdeApi = (data: any): Persona => ({
             )}
 
             <Dialog
-                header={viewMode ? "Ver persona" : editing ? "Editar persona" : "Nueva persona"}
+                header={viewMode ? "Ver proveedor" : editing ? "Editar proveedor" : "Nuevo proveedor"}
                 visible={open}
                 modal
                 draggable={false}
@@ -718,6 +741,8 @@ const adaptarPersonaDesdeApi = (data: any): Persona => ({
                 style={{ width: "1000px" }}
                 onHide={cerrarDialog}
             >
+                <TabView>
+                <TabPanel header="Datos Generales">
                 <div className="grid">
                     <div className="col-12 md:col-6">
                         <label className="block mb-3 font-medium">
@@ -760,7 +785,7 @@ const adaptarPersonaDesdeApi = (data: any): Persona => ({
 
                     <div className="col-12 md:col-6">
                         <label className="block mb-3 font-medium">
-                            Naturaleza de la Persona <span className="text-red-500">*</span>
+                            Naturaleza del Proveedor <span className="text-red-500">*</span>
                         </label>
 
                         <div
@@ -817,7 +842,7 @@ const adaptarPersonaDesdeApi = (data: any): Persona => ({
                                     className="w-full"
                                     disabled={viewMode}
                                     value={form.dv}
-                                    maxLength={1}
+                                    maxLength={2}
                                     onChange={(e) => setForm({ ...form, dv: e.target.value })}
                                 />
                             </div>
@@ -880,17 +905,17 @@ const adaptarPersonaDesdeApi = (data: any): Persona => ({
                     )}
 
                     <div className="col-12 md:col-7">
-                        <label>Razón Social <span className="text-red-500">*</span></label>
+                        <label>Descripción <span className="text-red-500">*</span></label>
                         <InputText
-                            placeholder="Juan Perez"
+                            placeholder="Razón social o nombre del proveedor"
                             className="w-full"
                             disabled={viewMode}
-                            value={form.razonSocial}
-                            onChange={(e) => setForm({ ...form, razonSocial: e.target.value })}
+                            value={form.descripcion}
+                            onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
                         />
                     </div>
 
-                    <div className="col-12 md:col-8">
+                    <div className="col-12 md:col-5">
                         <label>Dirección</label>
                         <InputText
                             placeholder="Calle 1 c/ calle 2"
@@ -898,18 +923,6 @@ const adaptarPersonaDesdeApi = (data: any): Persona => ({
                             disabled={viewMode}
                             value={form.direccion}
                             onChange={(e) => setForm({ ...form, direccion: e.target.value })}
-                        />
-                    </div>
-
-                    <div className="col-12 md:col-4">
-                        <label>Nro. Casa</label>
-                        <InputNumber
-                            placeholder="9999"
-                            className="w-full"
-                            disabled={viewMode}
-                            value={form.nroCasa}
-                            useGrouping={false}
-                            onValueChange={(e) => setForm({ ...form, nroCasa: e.value ?? null })}
                         />
                     </div>
 
@@ -1021,34 +1034,6 @@ const adaptarPersonaDesdeApi = (data: any): Persona => ({
                     </div>
 
                     <div className="col-12 md:col-4">
-                        <label>Tipo de Operación</label>
-                        <Dropdown
-                            className="w-full"
-                            disabled={viewMode}
-                            value={form.tipoOperacion}
-                            options={tiposOperacion}
-                            optionLabel="descripcion"
-                            optionValue="id"
-                            placeholder="Seleccione un tipo de operación"
-                            onChange={(e) => setForm({ ...form, tipoOperacion: e.value })}
-                        />
-                    </div>
-
-                    <div className="col-12 md:col-4 flex align-items-end">
-                        <div className="flex align-items-center gap-2 pt-3">
-                            <Checkbox
-                                inputId="diplomatico"
-                                disabled={viewMode}
-                                checked={form.diplomatico}
-                                onChange={(e) => setForm({ ...form, diplomatico: !!e.checked })}
-                            />
-                            <label htmlFor="diplomatico" className="m-0 cursor-pointer">
-                                Es Diplomático.?
-                            </label>
-                        </div>
-                    </div>
-
-                    <div className="col-12 md:col-4">
                         <label>Email</label>
                         <InputText
                             placeholder="tucorreo@mail.com"
@@ -1060,27 +1045,102 @@ const adaptarPersonaDesdeApi = (data: any): Persona => ({
                     </div>
 
                     <div className="col-12 md:col-6">
-                        <label>Email Copia</label>
-                        <InputText
-                            placeholder="tucorreo@mail.com;otrocorreo@mail.com"
+                        <label>Banco</label>
+                        <Dropdown
                             className="w-full"
                             disabled={viewMode}
-                            value={form.emailCopia}
-                            onChange={(e) => setForm({ ...form, emailCopia: e.target.value })}
+                            value={form.bancoId}
+                            options={bancos}
+                            optionLabel="descripcion"
+                            optionValue="id"
+                            placeholder="Seleccione un Banco"
+                            filter
+                            showClear
+                            onChange={(e) => setForm({ ...form, bancoId: e.value })}
                         />
                     </div>
 
                     <div className="col-12 md:col-6">
-                        <label>Email Adicional</label>
+                        <label>Nro. de Cuenta</label>
                         <InputText
-                            placeholder="tucorreo@mail.com;otrocorreo@mail.com"
+                            placeholder="Nro. de cuenta bancaria"
                             className="w-full"
                             disabled={viewMode}
-                            value={form.emailAdicional}
-                            onChange={(e) => setForm({ ...form, emailAdicional: e.target.value })}
+                            value={form.nroCuenta}
+                            onChange={(e) => setForm({ ...form, nroCuenta: e.target.value })}
                         />
                     </div>
+
                 </div>
+                </TabPanel>
+
+                <TabPanel header="Visitas">
+                <div className="grid">
+                    <div className="col-12 md:col-6">
+                        <label>Repartidor / Encargado de Visitas</label>
+                        <InputText
+                            placeholder="Nombre del encargado"
+                            className="w-full"
+                            disabled={viewMode}
+                            value={form.encargadoVisitas}
+                            onChange={(e) => setForm({ ...form, encargadoVisitas: e.target.value })}
+                        />
+                    </div>
+
+                    <div className="col-12 md:col-6">
+                        <label>Teléfono del Encargado</label>
+                        <InputText
+                            placeholder="0999-9999999"
+                            className="w-full"
+                            disabled={viewMode}
+                            value={form.telefonoEncargado}
+                            onChange={(e) => setForm({ ...form, telefonoEncargado: e.target.value })}
+                        />
+                    </div>
+
+                    <div className="col-12">
+                        <label className="block mb-2">Días de Visita</label>
+                        <table className="w-full" style={{ borderCollapse: "collapse" }}>
+                            <thead>
+                                <tr>
+                                    <th style={{ textAlign: "left", padding: "0.5rem 0.75rem", borderBottom: "1px solid var(--surface-border)" }}>Día</th>
+                                    <th style={{ textAlign: "center", padding: "0.5rem 0.75rem", borderBottom: "1px solid var(--surface-border)", width: "100px" }}>Visita</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {DIAS_SEMANA.map((dia, index) => {
+                                    const marcado = form.diasVisita.includes(dia.id);
+
+                                    return (
+                                        <tr
+                                            key={dia.id}
+                                            style={{ backgroundColor: index % 2 === 0 ? "transparent" : "var(--surface-hover)" }}
+                                        >
+                                            <td style={{ padding: "0.5rem 0.75rem", borderBottom: "1px solid var(--surface-border)" }}>{dia.descripcion}</td>
+                                            <td style={{ padding: "0.5rem 0.75rem", borderBottom: "1px solid var(--surface-border)", textAlign: "center" }}>
+                                                <Checkbox
+                                                    inputId={`dia-visita-${dia.id}`}
+                                                    checked={marcado}
+                                                    disabled={viewMode}
+                                                    onChange={() => {
+                                                        setForm((prev) => ({
+                                                            ...prev,
+                                                            diasVisita: marcado
+                                                                ? prev.diasVisita.filter((d) => d !== dia.id)
+                                                                : [...prev.diasVisita, dia.id]
+                                                        }));
+                                                    }}
+                                                />
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                </TabPanel>
+                </TabView>
 
                 {!viewMode && (
                     <div className="flex justify-content-end gap-2 mt-4">

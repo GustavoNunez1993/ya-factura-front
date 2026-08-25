@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 
 import { Button } from "primereact/button";
@@ -13,7 +14,11 @@ import { InputText } from "primereact/inputtext";
 import { PersonaService } from "../../services/PersonaService";
 import { ProductosService } from "../../services/ProductosService";
 import { FacturaService } from "../../services/FacturaService";
-import { abrirBoletaVenta } from "../../comprobantes/invoices";
+import { CanalVentaService, type CanalVenta } from "../../services/CanalVentaService";
+import { VendedorService, type Vendedor } from "../../services/VendedorService";
+import { CajaAperturaCierreService } from "../../services/CajaAperturaCierreService";
+import { CondicionVentaService, type CondicionVenta } from "../../services/CondicionVentaService";
+import { descargarBoletaVentaPdf } from "../../comprobantes/invoices";
 
 interface Persona {
   id: string;
@@ -24,6 +29,11 @@ interface Persona {
   direccion?: string;
 }
 
+interface ProductoStockDeposito {
+  depositoNombre: string;
+  stock: number;
+}
+
 interface Producto {
   id: string;
   codigo: string;
@@ -31,6 +41,8 @@ interface Producto {
   descripcion: string;
   precioVenta: number | null;
   porcentajeIva: number | null;
+  stockTotal?: number;
+  stockPorDeposito?: ProductoStockDeposito[];
 }
 
 interface FacturaItem {
@@ -53,11 +65,6 @@ interface PagoItem {
   monto: number;
   referencia: string;
 }
-
-const condicionesVenta = [
-  { label: "Contado", value: "CONTADO" },
-  { label: "Crédito", value: "CREDITO" }
-];
 
 const monedas = [
   { label: "Guaraníes", value: "PYG" },
@@ -134,15 +141,21 @@ const recalcularItem = (item: FacturaItem): FacturaItem => {
 };
 
 export default function FacturacionPage() {
+  const navigate = useNavigate();
   const hoy = useMemo(() => startOfDay(new Date()), []);
   const fechaMinima = useMemo(() => addDays(hoy, -29), [hoy]);
   const fechaMaxima = useMemo(() => addDays(hoy, 5), [hoy]);
 
   const [clientes, setClientes] = useState<Persona[]>([]);
   const [productos, setProductos] = useState<Producto[]>([]);
+  const [canalesVenta, setCanalesVenta] = useState<CanalVenta[]>([]);
+  const [vendedores, setVendedores] = useState<Vendedor[]>([]);
+  const [condiciones, setCondiciones] = useState<CondicionVenta[]>([]);
   const [fecha, setFecha] = useState<Date>(hoy);
   const [clienteId, setClienteId] = useState<string | null>(null);
-  const [condicionVenta, setCondicionVenta] = useState("CONTADO");
+  const [canalVentaId, setCanalVentaId] = useState<string | null>(null);
+  const [vendedorSeleccionadoId, setVendedorSeleccionadoId] = useState<string | null>(null);
+  const [condicionVentaId, setCondicionVentaId] = useState<string | null>(null);
   const [moneda, setMoneda] = useState("PYG");
   const [puntoExpedicion, setPuntoExpedicion] = useState("");
   const [descuento, setDescuento] = useState<number>(0);
@@ -201,25 +214,61 @@ export default function FacturacionPage() {
   const vuelto = Math.max(totalPagado - totalNeto, 0);
   const tableScrollHeight = `${Math.min(Math.max(items.length * 56 + 56, 180), 520)}px`;
 
+  const condicionSeleccionada = useMemo(
+    () => condiciones.find((c) => c.id === condicionVentaId) ?? null,
+    [condiciones, condicionVentaId]
+  );
+
+  const esContado = (condicionSeleccionada?.tipoOperacion ?? 1) === 1;
+
   const cargarDatos = async () => {
     try {
-      const [clientesRes, productosRes] = await Promise.all([
+      const [clientesRes, productosRes, canalesRes, vendedoresRes, condicionesRes] = await Promise.all([
         PersonaService.getPaginated(0, 1000, ""),
-        ProductosService.getPaginated(0, 1000, "")
+        ProductosService.getPaginated(0, 1000, ""),
+        CanalVentaService.getAll(),
+        VendedorService.getAll(),
+        CondicionVentaService.getActivas()
       ]);
 
       setClientes(clientesRes?.content ?? []);
       setProductos(productosRes?.content ?? []);
+      setCanalesVenta(canalesRes ?? []);
+      setVendedores(vendedoresRes ?? []);
+      setCondiciones(condicionesRes ?? []);
+
+      const predeterminada = (condicionesRes ?? []).find((c) => c.predeterminada) ?? (condicionesRes ?? [])[0];
+      if (predeterminada) {
+        setCondicionVentaId(predeterminada.id);
+      }
     } catch (error) {
       console.error("Error cargando datos de facturación", error);
       setClientes([]);
       setProductos([]);
+      setCanalesVenta([]);
+      setVendedores([]);
+      setCondiciones([]);
     }
   };
 
   useEffect(() => {
     cargarDatos();
   }, []);
+
+  useEffect(() => {
+    CajaAperturaCierreService.getCajaAbierta(1).catch(() => {
+      Swal.fire({
+        icon: "warning",
+        title: "Sin apertura de caja",
+        text: "No hay una apertura de caja activa para el día de hoy. Realice la apertura de caja antes de emitir facturas.",
+        confirmButtonText: "Ir a apertura de caja",
+        showCancelButton: true,
+        cancelButtonText: "Volver al listado"
+      }).then((result) => {
+        navigate(result.isConfirmed ? "/apertura-caja" : "/facturacion");
+      });
+    });
+  }, [navigate]);
 
   const clienteTemplate = (cliente: Persona) => {
     if (!cliente) return null;
@@ -253,8 +302,16 @@ export default function FacturacionPage() {
     );
   };
 
+  const formatStock = (stockTotal?: number) => {
+    const stock = stockTotal ?? 0;
+    return new Intl.NumberFormat("es-PY", { maximumFractionDigits: 4 }).format(stock);
+  };
+
   const productoTemplate = (producto: Producto) => {
     if (!producto) return null;
+
+    const sinStock = (producto.stockTotal ?? 0) <= 0;
+    const stockPorDeposito = producto.stockPorDeposito ?? [];
 
     return (
       <div className="factura-product-option">
@@ -264,6 +321,24 @@ export default function FacturacionPage() {
           {producto.codigoBarra ? ` | Barra: ${producto.codigoBarra}` : ""}
           {" | "}
           Precio: {formatMoney(convertirDesdeGuaranies(producto.precioVenta ?? 0, moneda), moneda)}
+        </div>
+        <div className="text-sm mt-1">
+          {stockPorDeposito.length === 0 ? (
+            <span className="text-red-500 font-semibold">Sin stock</span>
+          ) : (
+            stockPorDeposito.map((item, index) => (
+              <span
+                key={item.depositoNombre}
+                className={item.stock <= 0 ? "text-red-500 font-semibold" : "text-green-600"}
+              >
+                {item.depositoNombre}: {formatStock(item.stock)}
+                {index < stockPorDeposito.length - 1 ? " · " : ""}
+              </span>
+            ))
+          )}
+          <span className={sinStock ? "text-red-500 font-semibold" : "text-color-secondary"}>
+            {" "}(Total: {formatStock(producto.stockTotal)})
+          </span>
         </div>
       </div>
     );
@@ -278,6 +353,8 @@ export default function FacturacionPage() {
         {producto.codigoBarra ? ` | ${producto.codigoBarra}` : ""}
         {" | "}
         {formatMoney(convertirDesdeGuaranies(producto.precioVenta ?? 0, moneda), moneda)}
+        {" | "}
+        Stock: {formatStock(producto.stockTotal)}
       </span>
     );
   };
@@ -527,7 +604,7 @@ export default function FacturacionPage() {
 
   const abrirBoletaImprimible = async (dNumDocReal?: string, facturaRes?: any) => {
     const cliente = clientes.find((item) => item.id === clienteId);
-    const condicionLabel = condicionesVenta.find((item) => item.value === condicionVenta)?.label ?? condicionVenta;
+    const condicionLabel = condicionSeleccionada?.descripcion ?? "";
 
     const clienteRazonSocial = facturaRes?.dNomRec ?? cliente?.razonSocial ?? "-";
     const clienteDireccion   = facturaRes?.dDirRec ?? cliente?.direccion ?? "";
@@ -543,12 +620,12 @@ export default function FacturacionPage() {
     const puntoDisplay = `${est}-${pexp}`;
     const nroDoc = `${puntoDisplay}-${(dNumDocReal ?? "0000001").padStart(7, "0")}`;
 
-    abrirBoletaVenta({
+    await descargarBoletaVentaPdf({
       puntoExpedicion: puntoDisplay,
       nroDoc,
       fecha,
       moneda,
-      condicionVenta,
+      condicionVenta: condicionSeleccionada?.tipoOperacion ?? 1,
       condicionLabel,
       clienteRazonSocial,
       clienteDocumento,
@@ -577,13 +654,16 @@ export default function FacturacionPage() {
       },
       totalAbonar,
       vuelto,
+      cdc: facturaRes?.cdc ?? undefined,
     });
   };
 
   const limpiarFacturacion = () => {
     setFecha(hoy);
     setClienteId(null);
-    setCondicionVenta("CONTADO");
+    setCanalVentaId(null);
+    setVendedorSeleccionadoId(null);
+    setCondicionVentaId(condiciones.find((c) => c.predeterminada)?.id ?? condiciones[0]?.id ?? null);
     setMoneda("PYG");
     setPuntoExpedicion("");
     setDescuento(0);
@@ -600,10 +680,6 @@ export default function FacturacionPage() {
   if (codigo === "BRL") return 3;
   if (codigo === "EUR") return 4;
   return 1;
-};
-
-const obtenerCondicionOperacionId = (condicion: string) => {
-  return condicion === "CONTADO" ? 1 : 2;
 };
 
 const obtenerTipoPagoId = (formaPago: string) => {
@@ -632,7 +708,7 @@ const crearFacturaPayload = () => {
     tipoImpuestoId: 1,
     monedaId: obtenerMonedaId(moneda),
     indicadorPresencia: 1,
-    condicionOperacionId: obtenerCondicionOperacionId(condicionVenta),
+    condicionOperacionId: condicionSeleccionada?.tipoOperacion ?? 1,
     tipoOperacionId: 1,
 
     dInfoEmi: null,
@@ -647,13 +723,15 @@ const crearFacturaPayload = () => {
     dTiCam: cotizaciones[moneda] ?? 1,
 
     dInfAdic: null,
-    iCondCred: condicionVenta === "CREDITO" ? 1 : null,
-    dPlazoCre: null,
-    dCuotas: null,
-    dMonEnt: null,
+    iCondCred: condicionSeleccionada?.tipoCondicionCredito ?? null,
+    dPlazoCre: condicionSeleccionada?.intervaloDias != null ? String(condicionSeleccionada.intervaloDias) : null,
+    dCuotas: condicionSeleccionada?.cantidadCuotas ?? null,
+    dMonEnt: condicionSeleccionada?.montoCuotaInicial ?? null,
 
     saldo: saldoPendiente,
     vendedorId: null,
+    vendedorSeleccionadoId,
+    canalVentaId,
     dOrdCompra: null,
 
     subtotal: {
@@ -774,9 +852,27 @@ const confirmarCobro = async () => {
 
     await abrirBoletaImprimible(facturaCreada?.dNumDoc ?? facturaCreada?.dnumDoc, facturaCreada);
 
-    Swal.fire("Cobro registrado", "La venta quedó registrada correctamente", "success");
+    await Swal.fire("Cobro registrado", "La venta quedó registrada correctamente", "success");
     setCobroVisible(false);
     limpiarFacturacion();
+    navigate("/facturacion");
+  } catch (error) {
+    console.error("Error registrando factura", error);
+    Swal.fire("Error", "No se pudo registrar la factura", "error");
+  }
+};
+
+const facturarACredito = async () => {
+  try {
+    const payload = crearFacturaPayload();
+
+    const facturaCreada = await FacturaService.create(payload);
+
+    await abrirBoletaImprimible(facturaCreada?.dNumDoc ?? facturaCreada?.dnumDoc, facturaCreada);
+
+    await Swal.fire("Factura registrada", "La venta a crédito quedó registrada correctamente", "success");
+    limpiarFacturacion();
+    navigate("/facturacion");
   } catch (error) {
     console.error("Error registrando factura", error);
     Swal.fire("Error", "No se pudo registrar la factura", "error");
@@ -826,7 +922,7 @@ const confirmarCobro = async () => {
 
           .facturacion-summary {
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
+            grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: .65rem;
           }
 
@@ -862,7 +958,11 @@ const confirmarCobro = async () => {
           }
 
           .facturacion-summary-total > * + * {
-            margin-top: .4rem;
+            border-top: 1px dashed #e5e7eb;
+          }
+
+          .facturacion-summary-total > *:last-child {
+            border-top: 1px solid #d1d5db;
           }
 
           .factura-product-option {
@@ -877,6 +977,10 @@ const confirmarCobro = async () => {
             display: grid;
             grid-template-columns: repeat(4, minmax(0, 1fr));
             gap: .75rem;
+          }
+
+          .facturacion-cobro-totales .text-2xl {
+            font-size: 1.15rem;
           }
 
           .facturacion-pago-form {
@@ -1062,9 +1166,13 @@ const confirmarCobro = async () => {
           <label>Condición</label>
           <Dropdown
             className="w-full"
-            value={condicionVenta}
-            options={condicionesVenta}
-            onChange={(e) => setCondicionVenta(e.value)}
+            value={condicionVentaId}
+            options={condiciones}
+            optionLabel="descripcion"
+            optionValue="id"
+            placeholder="Seleccione condición"
+            emptyMessage="No hay condiciones cargadas"
+            onChange={(e) => setCondicionVentaId(e.value)}
           />
         </div>
 
@@ -1088,6 +1196,39 @@ const confirmarCobro = async () => {
             onChange={(e) => setPuntoExpedicion(e.value)}
           />
         </div>
+
+        <div className="col-6 sm:col-6 md:col-3">
+          <label>Canal de venta</label>
+          <Dropdown
+            className="w-full"
+            value={canalVentaId}
+            options={canalesVenta}
+            optionLabel="descripcion"
+            optionValue="id"
+            placeholder="Seleccione canal"
+            filter
+            showClear
+            emptyMessage="No hay canales cargados"
+            onChange={(e) => setCanalVentaId(e.value)}
+          />
+        </div>
+
+        <div className="col-6 sm:col-6 md:col-3">
+          <label>Vendedor</label>
+          <Dropdown
+            className="w-full"
+            value={vendedorSeleccionadoId}
+            options={vendedores}
+            optionLabel="nombre"
+            optionValue="id"
+            placeholder="Seleccione vendedor"
+            filter
+            showClear
+            emptyMessage="No hay vendedores cargados"
+            onChange={(e) => setVendedorSeleccionadoId(e.value)}
+          />
+        </div>
+
       </div>
 
       <div className="grid align-items-end mt-2">
@@ -1284,22 +1425,20 @@ const confirmarCobro = async () => {
           </div>
 
           <div className="facturacion-summary-total">
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: ".4rem" }}>
-              <ResumenMonto label="Ítems registrados" value={items.length.toString()} destacado />
-              <ResumenMonto label="Total venta" value={formatMoney(totalAbonar, moneda)} />
-              <ResumenMonto label="Descuento" value={formatMoney(totalDescuento, moneda)} />
-              <ResumenMonto label="Anticipo" value={formatMoney(totalAnticipo, moneda)} />
-              <ResumenMonto label="Total a abonar" value={formatMoney(totalNeto, moneda)} destacado />
-            </div>
+            <ResumenFila label="Ítems registrados" value={items.length.toString()} />
+            <ResumenFila label="Total venta" value={formatMoney(totalAbonar, moneda)} />
+            <ResumenFila label="Descuento" value={formatMoney(totalDescuento, moneda)} />
+            <ResumenFila label="Anticipo" value={formatMoney(totalAnticipo, moneda)} />
+            <ResumenFila label="Total a abonar" value={formatMoney(totalNeto, moneda)} destacado />
           </div>
 
           <Button
             className="w-full mt-3"
-            icon="pi pi-credit-card"
-            label="Cobrar"
+            icon={esContado ? "pi pi-credit-card" : "pi pi-check"}
+            label={esContado ? "Cobrar" : "Facturar"}
             severity="success"
             disabled={!items.length}
-            onClick={abrirCobro}
+            onClick={esContado ? abrirCobro : facturarACredito}
           />
         </aside>
       </div>
@@ -1444,13 +1583,44 @@ function ResumenMonto({
       className="px-2 py-2"
       style={{
         background: destacado ? "#f8fafc" : "#ffffff",
-        borderRadius: 4
+        borderRadius: 4,
+        minWidth: 0
       }}
     >
       <div className="text-color-secondary text-sm">{label}</div>
-      <div className={destacado ? "text-2xl font-bold" : "text-lg font-semibold"}>
+      <div
+        className={destacado ? "text-2xl font-bold" : "text-lg font-semibold"}
+        style={{ overflowWrap: "anywhere" }}
+      >
         {value}
       </div>
+    </div>
+  );
+}
+
+function ResumenFila({
+  label,
+  value,
+  destacado = false
+}: {
+  label: string;
+  value: string;
+  destacado?: boolean;
+}) {
+  return (
+    <div
+      className="flex align-items-baseline justify-content-between gap-2"
+      style={{ padding: destacado ? ".5rem 0 0" : ".2rem 0" }}
+    >
+      <span className={destacado ? "font-semibold" : "text-color-secondary text-sm"}>
+        {label}
+      </span>
+      <span
+        className={destacado ? "text-xl font-bold" : "font-medium"}
+        style={{ overflowWrap: "anywhere", textAlign: "right" }}
+      >
+        {value}
+      </span>
     </div>
   );
 }

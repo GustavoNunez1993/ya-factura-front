@@ -40,11 +40,13 @@ export default function Sidebar({ collapsed, mobileOpen, setMobileOpen }: Props)
 
   const isActive = (path: string) => location.pathname === path;
 
-  const [openConfig, setOpenConfig] = useState(true);
-  const [openFacturacion, setOpenFacturacion] = useState(false);
-  const [openReportes, setOpenReportes] = useState(false);
-  const [openProductos, setOpenProductos] = useState(false);
-  const [openCuentaCorriente, setOpenCuentaCorriente] = useState(false);
+  type MenuKey = "config" | "productos" | "facturacion" | "cuentaCorriente" | "stock" | "reportes";
+
+  const [openMenu, setOpenMenu] = useState<MenuKey | null>("config");
+
+  const toggleMenu = (key: MenuKey) => {
+    setOpenMenu((prev) => (prev === key ? null : key));
+  };
 
   const handleLogout = async () => {
     await logout();
@@ -96,18 +98,20 @@ export default function Sidebar({ collapsed, mobileOpen, setMobileOpen }: Props)
         label="Configuraciones"
         collapsed={isCollapsed}
         expandable
-        open={openConfig}
+        open={openMenu === "config"}
         active={
           isActive("/personas") ||
           isActive("/pais") ||
           isActive("/departamentos") ||
           isActive("/distritos") ||
-          isActive("/ciudades")
+          isActive("/ciudades") ||
+          isActive("/empresa") ||
+          isActive("/firmador-tenants")
         }
-        onClick={() => setOpenConfig(!openConfig)}
+        onClick={() => toggleMenu("config")}
       />
 
-      {openConfig && !isCollapsed && (
+      {openMenu === "config" && !isCollapsed && (
         <>
           <SubItem
             icon="pi pi-users"
@@ -127,6 +131,18 @@ export default function Sidebar({ collapsed, mobileOpen, setMobileOpen }: Props)
             active={isActive("/bancos")}
             onClick={() => go("/bancos")}
           />
+          <SubItem
+            icon="pi pi-building"
+            label="Datos de la empresa"
+            active={isActive("/empresa")}
+            onClick={() => go("/empresa")}
+          />
+          <SubItem
+            icon="pi pi-shield"
+            label="Tenants firmador-xml"
+            active={isActive("/firmador-tenants")}
+            onClick={() => go("/firmador-tenants")}
+          />
         </>
       )}
 
@@ -135,7 +151,7 @@ export default function Sidebar({ collapsed, mobileOpen, setMobileOpen }: Props)
         label="Conf. Productos"
         collapsed={isCollapsed}
         expandable
-        open={openProductos}
+        open={openMenu === "productos"}
         active={
           isActive("/productos") ||
           isActive("/marcas") ||
@@ -144,10 +160,10 @@ export default function Sidebar({ collapsed, mobileOpen, setMobileOpen }: Props)
           isActive("/colores") ||
           isActive("/talles")
         }
-        onClick={() => setOpenProductos(!openProductos)}
+        onClick={() => toggleMenu("productos")}
       />
 
-      {openProductos && !isCollapsed && (
+      {openMenu === "productos" && !isCollapsed && (
         <>
           <SubItem icon="pi pi-box" label="Productos" active={isActive("/productos")} onClick={() => go("/productos")} />
           <SubItem icon="pi pi-bookmark" label="Marcas" active={isActive("/marcas")} onClick={() => go("/marcas")} />
@@ -164,16 +180,30 @@ export default function Sidebar({ collapsed, mobileOpen, setMobileOpen }: Props)
         label="Facturación"
         collapsed={isCollapsed}
         expandable
-        open={openFacturacion}
-        active={isActive("/facturacion") || isActive("/apertura-caja") || isActive("/cierre-caja")}
-        onClick={() => setOpenFacturacion(!openFacturacion)}
+        open={openMenu === "facturacion"}
+        active={
+          isActive("/facturacion") ||
+          isActive("/apertura-caja") ||
+          isActive("/cierre-caja") ||
+          isActive("/canales-venta") ||
+          isActive("/vendedores") ||
+          isActive("/cargos") ||
+          isActive("/condiciones-venta") ||
+          isActive("/timbrados")
+        }
+        onClick={() => toggleMenu("facturacion")}
       />
 
-      {openFacturacion && !isCollapsed && (
+      {openMenu === "facturacion" && !isCollapsed && (
         <>
           <SubItem icon="pi pi-receipt" label="Facturación" active={isActive("/facturacion")} onClick={() => go("/facturacion")} />
           <SubItem icon="pi pi-play-circle" label="Apertura Caja" active={isActive("/apertura-caja")} onClick={() => go("/apertura-caja")} />
           <SubItem icon="pi pi-stop-circle" label="Cierre Caja" active={isActive("/cierre-caja")} onClick={() => go("/cierre-caja")} />
+          <SubItem icon="pi pi-send" label="Canales de Venta" active={isActive("/canales-venta")} onClick={() => go("/canales-venta")} />
+          <SubItem icon="pi pi-id-card" label="Vendedores" active={isActive("/vendedores")} onClick={() => go("/vendedores")} />
+          <SubItem icon="pi pi-briefcase" label="Cargos" active={isActive("/cargos")} onClick={() => go("/cargos")} />
+          <SubItem icon="pi pi-money-bill" label="Condiciones de Venta" active={isActive("/condiciones-venta")} onClick={() => go("/condiciones-venta")} />
+          <SubItem icon="pi pi-verified" label="Timbrados" active={isActive("/timbrados")} onClick={() => go("/timbrados")} />
         </>
       )}
 
@@ -182,15 +212,33 @@ export default function Sidebar({ collapsed, mobileOpen, setMobileOpen }: Props)
         label="Cuenta Corrientes"
         collapsed={isCollapsed}
         expandable
-        open={openCuentaCorriente}
+        open={openMenu === "cuentaCorriente"}
         active={isActive("/cuenta-corriente/clientes") || isActive("/cuenta-corriente/proveedores")}
-        onClick={() => setOpenCuentaCorriente(!openCuentaCorriente)}
+        onClick={() => toggleMenu("cuentaCorriente")}
       />
 
-      {openCuentaCorriente && !isCollapsed && (
+      {openMenu === "cuentaCorriente" && !isCollapsed && (
         <>
           <SubItem icon="pi pi-users" label="Clientes" active={isActive("/cuenta-corriente/clientes")} onClick={() => go("/cuenta-corriente/clientes")} />
           <SubItem icon="pi pi-briefcase" label="Proveedores" active={isActive("/cuenta-corriente/proveedores")} onClick={() => go("/cuenta-corriente/proveedores")} />
+        </>
+      )}
+
+      <MenuItem
+        icon="pi pi-database"
+        label="Stock"
+        collapsed={isCollapsed}
+        expandable
+        open={openMenu === "stock"}
+        active={isActive("/stock") || isActive("/stock/transferencias") || isActive("/depositos")}
+        onClick={() => toggleMenu("stock")}
+      />
+
+      {openMenu === "stock" && !isCollapsed && (
+        <>
+          <SubItem icon="pi pi-database" label="Stock" active={isActive("/stock")} onClick={() => go("/stock")} />
+          <SubItem icon="pi pi-arrow-right-arrow-left" label="Transferencias" active={isActive("/stock/transferencias")} onClick={() => go("/stock/transferencias")} />
+          <SubItem icon="pi pi-warehouse" label="Depósitos" active={isActive("/depositos")} onClick={() => go("/depositos")} />
         </>
       )}
 
@@ -199,15 +247,14 @@ export default function Sidebar({ collapsed, mobileOpen, setMobileOpen }: Props)
         label="Reportes"
         collapsed={isCollapsed}
         expandable
-        open={openReportes}
-        active={isActive("/ventas") || isActive("/stock")}
-        onClick={() => setOpenReportes(!openReportes)}
+        open={openMenu === "reportes"}
+        active={isActive("/ventas")}
+        onClick={() => toggleMenu("reportes")}
       />
 
-      {openReportes && !isCollapsed && (
+      {openMenu === "reportes" && !isCollapsed && (
         <>
           <SubItem icon="pi pi-chart-bar" label="Ventas" active={isActive("/ventas")} onClick={() => go("/ventas")} />
-          <SubItem icon="pi pi-database" label="Stock" active={isActive("/stock")} onClick={() => go("/stock")} />
         </>
       )}
 

@@ -1,0 +1,6 @@
+/* Los Dialog de PrimeReact incrementan su z-index dinamicamente en cada
+   apertura y pueden superar al de SweetAlert2, dejando el mensaje detras
+   del formulario. Se fuerza el swal2-container siempre por encima. */
+.swal2-container {
+  z-index: 99999 !important;
+}

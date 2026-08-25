@@ -4,6 +4,13 @@ const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL
 });
 
+export const apiOrigin = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/api\/?$/, "");
+
+export const resolveAssetUrl = (path?: string | null) => {
+  if (!path) return undefined;
+  return path.startsWith("http") ? path : `${apiOrigin}${path}`;
+};
+
 //  Request interceptor
 api.interceptors.request.use((config) => {
 

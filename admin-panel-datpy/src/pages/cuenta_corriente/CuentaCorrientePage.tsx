@@ -294,17 +294,13 @@ export default function CuentaCorrientePage({ tipo }: Props) {
         value={rowData.montoPago ?? null}
         min={0}
         max={Number(rowData.saldoPendiente || 0)}
-        mode="currency"
-        currency="PYG"
+        mode="decimal"
+        prefix="Gs. "
         locale="es-PY"
         minFractionDigits={0}
         maxFractionDigits={0}
         disabled={!seleccionada}
         onValueChange={(e) => actualizarMontoPago(rowData.id, e.value ?? null)}
-        onFocus={(e) => {
-          const target = e.target;
-          setTimeout(() => target.select(), 0);
-        }}
       />
     );
   };
@@ -510,10 +506,10 @@ export default function CuentaCorrientePage({ tipo }: Props) {
         <div className="col-12 md:col-5 lg:col-3">
           <div
             style={{
-              border: "1px solid #e5e7eb",
+              border: "1px solid var(--surface-border)",
               borderRadius: 8,
               padding: 12,
-              background: "#ffffff"
+              background: "var(--surface-card)"
             }}
           >
             <div className="text-color-secondary text-sm">Total a pagar</div>
@@ -564,6 +560,13 @@ export default function CuentaCorrientePage({ tipo }: Props) {
         <Column
           header="Total"
           body={(rowData: FacturaPendiente) => formatMoney(rowData.total)}
+        />
+
+        <Column
+          header="Total abonado"
+          body={(rowData: FacturaPendiente) =>
+            formatMoney(Number(rowData.total || 0) - Number(rowData.saldoPendiente || 0))
+          }
         />
 
         <Column

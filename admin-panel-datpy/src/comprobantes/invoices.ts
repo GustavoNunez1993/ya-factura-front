@@ -30,7 +30,7 @@ export interface BoletaVentaData {
   nroDoc: string;
   fecha: Date;
   moneda: string;
-  condicionVenta: string;
+  condicionVenta: number | null;
   condicionLabel: string;
   clienteRazonSocial: string;
   clienteDocumento: string;
@@ -40,17 +40,7 @@ export interface BoletaVentaData {
   resumen: ComprobanteResumen;
   totalAbonar: number;
   vuelto: number;
-}
-
-
-
-function esc(value: string | number | null | undefined): string {
-  return String(value ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
+  cdc?: string;
 }
 
 function fmtNum(value: number, currency = "PYG"): string {
@@ -61,267 +51,301 @@ function fmtNum(value: number, currency = "PYG"): string {
   }).format(value || 0);
 }
 
-
-
-// ── QR placeholder SVG ─────────────────────────────────────────────────────
-
-const QR_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 21 21" width="130" height="130" shape-rendering="crispEdges">
-<rect width="21" height="21" fill="white"/>
-<rect x="0" y="0" width="7" height="7" fill="black"/><rect x="1" y="1" width="5" height="5" fill="white"/><rect x="2" y="2" width="3" height="3" fill="black"/>
-<rect x="14" y="0" width="7" height="7" fill="black"/><rect x="15" y="1" width="5" height="5" fill="white"/><rect x="16" y="2" width="3" height="3" fill="black"/>
-<rect x="0" y="14" width="7" height="7" fill="black"/><rect x="1" y="15" width="5" height="5" fill="white"/><rect x="2" y="16" width="3" height="3" fill="black"/>
-<rect x="8" y="6" width="1" height="1" fill="black"/><rect x="10" y="6" width="1" height="1" fill="black"/><rect x="12" y="6" width="1" height="1" fill="black"/>
-<rect x="6" y="8" width="1" height="1" fill="black"/><rect x="6" y="10" width="1" height="1" fill="black"/><rect x="6" y="12" width="1" height="1" fill="black"/>
-<rect x="8" y="8" width="1" height="1" fill="black"/><rect x="10" y="8" width="1" height="1" fill="black"/><rect x="12" y="8" width="1" height="1" fill="black"/>
-<rect x="9" y="9" width="1" height="1" fill="black"/><rect x="11" y="9" width="1" height="1" fill="black"/>
-<rect x="8" y="10" width="1" height="1" fill="black"/><rect x="10" y="10" width="2" height="2" fill="black"/>
-<rect x="9" y="11" width="1" height="1" fill="black"/><rect x="12" y="11" width="1" height="1" fill="black"/>
-<rect x="8" y="12" width="1" height="1" fill="black"/><rect x="11" y="12" width="2" height="1" fill="black"/>
-<rect x="14" y="8" width="1" height="1" fill="black"/><rect x="16" y="8" width="1" height="1" fill="black"/><rect x="18" y="8" width="1" height="1" fill="black"/><rect x="20" y="8" width="1" height="1" fill="black"/>
-<rect x="15" y="9" width="1" height="1" fill="black"/><rect x="17" y="9" width="1" height="1" fill="black"/><rect x="19" y="9" width="1" height="1" fill="black"/>
-<rect x="14" y="10" width="1" height="1" fill="black"/><rect x="16" y="10" width="2" height="1" fill="black"/><rect x="20" y="10" width="1" height="1" fill="black"/>
-<rect x="15" y="11" width="1" height="1" fill="black"/><rect x="18" y="11" width="2" height="1" fill="black"/>
-<rect x="14" y="12" width="2" height="1" fill="black"/><rect x="17" y="12" width="1" height="1" fill="black"/><rect x="20" y="12" width="1" height="1" fill="black"/>
-<rect x="8" y="14" width="1" height="1" fill="black"/><rect x="10" y="14" width="2" height="1" fill="black"/><rect x="13" y="14" width="1" height="1" fill="black"/>
-<rect x="9" y="15" width="1" height="1" fill="black"/><rect x="12" y="15" width="1" height="1" fill="black"/>
-<rect x="8" y="16" width="2" height="1" fill="black"/><rect x="11" y="16" width="2" height="1" fill="black"/>
-<rect x="8" y="17" width="1" height="1" fill="black"/><rect x="10" y="17" width="1" height="1" fill="black"/><rect x="12" y="17" width="1" height="1" fill="black"/>
-<rect x="9" y="18" width="2" height="1" fill="black"/><rect x="13" y="18" width="1" height="1" fill="black"/>
-<rect x="8" y="19" width="1" height="1" fill="black"/><rect x="11" y="19" width="1" height="1" fill="black"/>
-<rect x="9" y="20" width="1" height="1" fill="black"/><rect x="12" y="20" width="1" height="1" fill="black"/>
-<rect x="14" y="14" width="2" height="1" fill="black"/><rect x="17" y="14" width="1" height="1" fill="black"/><rect x="19" y="14" width="2" height="1" fill="black"/>
-<rect x="15" y="15" width="1" height="1" fill="black"/><rect x="18" y="15" width="1" height="1" fill="black"/>
-<rect x="14" y="16" width="1" height="1" fill="black"/><rect x="16" y="16" width="2" height="1" fill="black"/><rect x="20" y="16" width="1" height="1" fill="black"/>
-<rect x="15" y="17" width="1" height="1" fill="black"/><rect x="17" y="17" width="1" height="1" fill="black"/><rect x="19" y="17" width="2" height="1" fill="black"/>
-<rect x="14" y="18" width="1" height="1" fill="black"/><rect x="16" y="18" width="1" height="1" fill="black"/><rect x="18" y="18" width="1" height="1" fill="black"/>
-<rect x="15" y="19" width="2" height="1" fill="black"/><rect x="19" y="19" width="1" height="1" fill="black"/>
-<rect x="14" y="20" width="1" height="1" fill="black"/><rect x="17" y="20" width="2" height="1" fill="black"/><rect x="20" y="20" width="1" height="1" fill="black"/>
-<rect x="8" y="0" width="1" height="1" fill="black"/><rect x="10" y="0" width="1" height="1" fill="black"/><rect x="12" y="0" width="1" height="1" fill="black"/>
-<rect x="9" y="1" width="1" height="1" fill="black"/><rect x="11" y="1" width="2" height="1" fill="black"/>
-<rect x="8" y="2" width="2" height="1" fill="black"/><rect x="12" y="2" width="1" height="1" fill="black"/>
-<rect x="9" y="3" width="1" height="1" fill="black"/><rect x="11" y="3" width="1" height="1" fill="black"/>
-<rect x="8" y="4" width="1" height="1" fill="black"/><rect x="10" y="4" width="2" height="1" fill="black"/>
-<rect x="9" y="5" width="1" height="1" fill="black"/><rect x="12" y="5" width="1" height="1" fill="black"/>
-<rect x="0" y="8" width="1" height="1" fill="black"/><rect x="2" y="8" width="2" height="1" fill="black"/><rect x="5" y="8" width="1" height="1" fill="black"/>
-<rect x="1" y="9" width="1" height="1" fill="black"/><rect x="3" y="9" width="1" height="1" fill="black"/>
-<rect x="0" y="10" width="2" height="1" fill="black"/><rect x="4" y="10" width="2" height="1" fill="black"/>
-<rect x="1" y="11" width="1" height="1" fill="black"/><rect x="3" y="11" width="1" height="1" fill="black"/><rect x="5" y="11" width="1" height="1" fill="black"/>
-<rect x="0" y="12" width="1" height="1" fill="black"/><rect x="2" y="12" width="1" height="1" fill="black"/><rect x="4" y="12" width="1" height="1" fill="black"/>
-</svg>`;
-
-// ── HTML Generator ─────────────────────────────────────────────────────────
-
-export function generarBoletaVentaHtml(data: BoletaVentaData): string {
-  const {
-     nroDoc, fecha, moneda,
-    condicionVenta, condicionLabel,
-    clienteRazonSocial, clienteDocumento, clienteDireccion,
-    items, resumen, totalAbonar
-  } = data;
-
-  const itemsHtml = items.map((item) => `
-    <tr>
-      <td class="c">${esc(item.codigo)}</td>
-      <td>${esc(item.descripcion)}</td>
-      <td class="c">${esc(item.cantidad)}</td>
-      <td class="r">${esc(fmtNum(item.precioUnitario, moneda))}</td>
-      <td class="r">${esc(fmtNum(item.exenta, moneda))}</td>
-      <td class="r">${esc(fmtNum(item.iva5, moneda))}</td>
-      <td class="r">${esc(fmtNum(item.iva10, moneda))}</td>
-    </tr>
-  `).join("");
-
-  return `<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8"/>
-  <title>Boleta de venta</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { padding: 20px; color: #111; font-family: Arial, sans-serif; font-size: 11px; background: #f0f0f0; }
-    .page { max-width: 950px; margin: 0 auto; background: #fff; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,.15); }
-    .print-btn {
-      display: block; margin: 16px auto 0; padding: 10px 32px;
-      background: #1d4ed8; color: #fff; border: none; border-radius: 6px;
-      font-size: 14px; font-weight: 600; cursor: pointer; letter-spacing: .3px;
-    }
-    .print-btn:hover { background: #1e40af; }
-
-    /* HEADER CARD */
-    .header-card {
-      display: grid; grid-template-columns: 1fr 1fr;
-      border: 2px solid #222; border-radius: 6px; overflow: hidden; margin-bottom: 8px;
-    }
-    .hc-left { padding: 14px 18px; border-right: 2px solid #222; }
-    .brand-name { font-size: 28px; font-weight: 900; letter-spacing: 1px; line-height: 1.1; }
-    .brand-tagline { font-size: 10px; color: #555; margin-bottom: 10px; }
-    .brand-info-table { border: none; font-size: 10px; color: #333; }
-    .brand-info-table td { padding: 1px 4px 1px 0; border: none; }
-    .hc-right {
-      padding: 10px 18px; display: flex; flex-direction: column;
-      align-items: flex-end; justify-content: center; gap: 4px;
-    }
-    .doc-meta-table { border: none; font-size: 10px; color: #333; margin-bottom: 6px; }
-    .doc-meta-table td { padding: 1px 6px; border: none; }
-    .doc-meta-table td:last-child { font-weight: 700; text-align: right; }
-    .doc-type-title { font-size: 15px; font-weight: 700; text-align: center; }
-    .doc-number { font-size: 14px; font-weight: 700; text-align: center; }
-
-    /* CLIENT CARD */
-    .client-card {
-      display: grid; grid-template-columns: 1fr 1fr;
-      border: 2px solid #222; border-radius: 6px; overflow: hidden;
-      margin-bottom: 8px; padding: 10px 18px; gap: 8px 24px;
-      line-height: 1.9; font-size: 11px;
-    }
-    .client-card .lbl { font-weight: 700; }
-    .cond-inline { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-    .cond-chk {
-      border: 2px solid #222; width: 16px; height: 16px;
-      display: inline-flex; align-items: center; justify-content: center;
-      font-weight: 700; font-size: 13px; line-height: 1;
-    }
-
-    /* MAIN TABLE */
-    .main-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
-    .main-table th, .main-table td { border: 1.5px solid #222; padding: 5px 7px; vertical-align: middle; }
-    .main-table thead tr { background: #d8d8d8; }
-    .main-table th { font-weight: 700; font-size: 10px; text-align: center; }
-    .main-table td.c { text-align: center; }
-    .main-table td.r { text-align: right; white-space: nowrap; }
-    .main-table td.bold { font-weight: 700; }
-    .row-subtotal td { background: #efefef; font-weight: 700; }
-    .row-total td { background: #e0e0e0; font-weight: 700; font-size: 12px; }
-    .row-iva td { font-size: 10px; background: #f8f8f8; }
-
-    /* VUELTO */
-    .vuelto-row {
-      text-align: right; font-weight: 700; font-size: 12px; padding: 6px 4px 10px;
-      border-top: 1.5px solid #222;
-    }
-
-    /* QR SECTION */
-    .qr-section { border: 2px solid #222; border-radius: 4px; padding: 12px 16px; margin-bottom: 8px; }
-    .qr-inner { display: flex; gap: 20px; align-items: flex-start; margin-bottom: 10px; }
-    .qr-svg-wrap { flex-shrink: 0; border: 1px solid #999; padding: 4px; background: white; }
-    .qr-info { flex: 1; font-size: 11px; line-height: 1.6; }
-    .qr-info p { margin-bottom: 6px; }
-    .qr-ref-label { font-weight: 700; font-size: 11px; }
-    .cdc-number { font-size: 15px; font-weight: 700; letter-spacing: 1px; word-break: break-all; margin-top: 6px; }
-    .legal-block { font-size: 10px; color: #333; line-height: 1.6; border-top: 1px solid #bbb; padding-top: 8px; }
-    .legal-block p { margin-bottom: 3px; }
-
-    @page { size: A4; margin: 10mm; }
-    @media print {
-      body { padding: 0; background: white; }
-      .page { max-width: none; box-shadow: none; padding: 0; }
-      .print-btn { display: none; }
-    }
-  </style>
-</head>
-<body>
-<div class="page">
-
-  <!-- HEADER CARD -->
-  <div class="header-card">
-    <div class="hc-left">
-      <div class="brand-name">Ya Factura</div>
-      <div class="brand-tagline">Sistema Administrativo</div>
-      <table class="brand-info-table">
-        <tr><td>Actividades Relacionadas al Analisis y Desarrollo de Sistemas</td></tr>
-      </table>
-    </div>
-    <div class="hc-right">
-      <table class="doc-meta-table">
-        <tr><td>Fecha:</td><td>${esc(fecha.toLocaleDateString("es-PY"))}</td></tr>
-        <tr><td>Moneda:</td><td>${esc(moneda)}</td></tr>
-      </table>
-      <div class="doc-type-title">FACTURA</div>
-      <div class="doc-number">${esc(nroDoc)}</div>
-    </div>
-  </div>
-
-  <!-- CLIENT CARD -->
-  <div class="client-card">
-    <div>
-      <div><span class="lbl">Fecha y hora de emisión:</span> ${esc(fecha.toLocaleString("es-PY"))}</div>
-      <div><span class="lbl">Nombre o Razón Social:</span> ${esc(clienteRazonSocial)}</div>
-      <div><span class="lbl">RUC N° de C.I.:</span> ${esc(clienteDocumento)}</div>
-      ${clienteDireccion ? `<div><span class="lbl">Dirección:</span> ${esc(clienteDireccion)}</div>` : ""}
-    </div>
-    <div>
-      <div class="cond-inline">
-        <span class="lbl">Condición de venta:</span>
-        Contado: <span class="cond-chk">${condicionVenta === "CONTADO" ? "X" : "&nbsp;"}</span>
-        Crédito: <span class="cond-chk">${condicionVenta !== "CONTADO" ? "X" : "&nbsp;"}</span>
-      </div>
-      <div><span class="lbl">Condición de pago:</span> ${esc(condicionLabel)}</div>
-      <div><span class="lbl">Moneda:</span> ${esc(moneda)}</div>
-    </div>
-  </div>
-
-  <!-- PRODUCTOS + TOTALES + IVA -->
-  <table class="main-table">
-    <thead>
-      <tr>
-        <th style="width:70px">Código</th>
-        <th>Descripción</th>
-        <th style="width:50px">Cant.</th>
-        <th style="width:90px">P. Unit.</th>
-        <th style="width:90px">Exentas</th>
-        <th style="width:90px">5%</th>
-        <th style="width:90px">10%</th>
-      </tr>
-    </thead>
-    <tbody>${itemsHtml}</tbody>
-    <tfoot>
-      <tr class="row-subtotal">
-        <td colspan="4" class="bold">SUBTOTAL:</td>
-        <td class="r">${esc(fmtNum(resumen.totalExenta, moneda))}</td>
-        <td class="r">${esc(fmtNum(resumen.subtotalIva5, moneda))}</td>
-        <td class="r">${esc(fmtNum(resumen.subtotalIva10, moneda))}</td>
-      </tr>
-      <tr class="row-total">
-        <td colspan="6" class="bold">TOTAL DE LA OPERACIÓN:</td>
-        <td class="r">${esc(fmtNum(totalAbonar, moneda))}</td>
-      </tr>
-      <tr class="row-iva">
-        <td colspan="2" class="bold">LIQUIDACIÓN IVA:</td>
-        <td class="c">(5%)</td>
-        <td class="r">${esc(fmtNum(resumen.liquidacionIva5, moneda))}</td>
-        <td class="c">(10%)</td>
-        <td class="r">${esc(fmtNum(resumen.liquidacionIva10, moneda))}</td>
-        <td class="r bold">TOTAL IVA: ${esc(fmtNum(resumen.totalIva, moneda))}</td>
-      </tr>
-    </tfoot>
-  </table>
-
-  <!-- SECCIÓN QR -->
-  <div class="qr-section">
-    <div class="qr-inner">
-      <div class="qr-svg-wrap">${QR_SVG}</div>
-      <div class="qr-info">
-        <p class="qr-ref-label">Consulte la validez de este comprobante con el número de referencia impreso abajo:</p>
-        <p class="cdc-number">REF: 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000</p>
-      </div>
-    </div>
-    <div class="legal-block">
-      <p><strong>ESTE DOCUMENTO ES UNA REPRESENTACIÓN GRÁFICA DE UN COMPROBANTE DE VENTA</strong></p>
-      <p>Si este comprobante presenta algún error, podrá solicitar su corrección dentro de las 48 horas siguientes a la emisión.</p>
-      <p>Gracias por su compra</p>
-    </div>
-  </div>
-
-</div>
-<button class="print-btn" onclick="window.print()">&#128438; Imprimir / Guardar PDF</button>
-</body>
-</html>`;
+function fmtCdc(cdc?: string): string {
+  if (!cdc) return "Documento aún no enviado a SIFEN";
+  return cdc.match(/.{1,4}/g)?.join(" ") ?? cdc;
 }
 
-// ── PDF opener ─────────────────────────────────────────────────────────────
+// ── Patrón "QR" decorativo ───────────────────────────────────────────────
+// No es un QR real (no codifica el CDC) — se dibuja como grilla vectorial de
+// 21x21 para que se vea nítido a cualquier zoom, sin rasterizar nada.
 
-export function abrirBoletaVenta(data: BoletaVentaData): void {
-  const html = generarBoletaVentaHtml(data);
-  const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-  window.open(URL.createObjectURL(blob), "_blank");
+const QR_PATTERN_21x21: Array<{ x: number; y: number; w: number; h: number }> = [
+  { x: 0, y: 0, w: 7, h: 7 }, { x: 1, y: 1, w: 5, h: 5, }, { x: 2, y: 2, w: 3, h: 3 },
+  { x: 14, y: 0, w: 7, h: 7 }, { x: 15, y: 1, w: 5, h: 5 }, { x: 16, y: 2, w: 3, h: 3 },
+  { x: 0, y: 14, w: 7, h: 7 }, { x: 1, y: 15, w: 5, h: 5 }, { x: 2, y: 16, w: 3, h: 3 },
+  { x: 8, y: 6, w: 1, h: 1 }, { x: 10, y: 6, w: 1, h: 1 }, { x: 12, y: 6, w: 1, h: 1 },
+  { x: 6, y: 8, w: 1, h: 1 }, { x: 6, y: 10, w: 1, h: 1 }, { x: 6, y: 12, w: 1, h: 1 },
+  { x: 8, y: 8, w: 1, h: 1 }, { x: 10, y: 8, w: 1, h: 1 }, { x: 12, y: 8, w: 1, h: 1 },
+  { x: 9, y: 9, w: 1, h: 1 }, { x: 11, y: 9, w: 1, h: 1 },
+  { x: 8, y: 10, w: 1, h: 1 }, { x: 10, y: 10, w: 2, h: 2 },
+  { x: 9, y: 11, w: 1, h: 1 }, { x: 12, y: 11, w: 1, h: 1 },
+  { x: 8, y: 12, w: 1, h: 1 }, { x: 11, y: 12, w: 2, h: 1 },
+  { x: 14, y: 8, w: 1, h: 1 }, { x: 16, y: 8, w: 1, h: 1 }, { x: 18, y: 8, w: 1, h: 1 }, { x: 20, y: 8, w: 1, h: 1 },
+  { x: 15, y: 9, w: 1, h: 1 }, { x: 17, y: 9, w: 1, h: 1 }, { x: 19, y: 9, w: 1, h: 1 },
+  { x: 14, y: 10, w: 1, h: 1 }, { x: 16, y: 10, w: 2, h: 1 }, { x: 20, y: 10, w: 1, h: 1 },
+  { x: 15, y: 11, w: 1, h: 1 }, { x: 18, y: 11, w: 2, h: 1 },
+  { x: 14, y: 12, w: 2, h: 1 }, { x: 17, y: 12, w: 1, h: 1 }, { x: 20, y: 12, w: 1, h: 1 },
+  { x: 8, y: 14, w: 1, h: 1 }, { x: 10, y: 14, w: 2, h: 1 }, { x: 13, y: 14, w: 1, h: 1 },
+  { x: 9, y: 15, w: 1, h: 1 }, { x: 12, y: 15, w: 1, h: 1 },
+  { x: 8, y: 16, w: 2, h: 1 }, { x: 11, y: 16, w: 2, h: 1 },
+  { x: 8, y: 17, w: 1, h: 1 }, { x: 10, y: 17, w: 1, h: 1 }, { x: 12, y: 17, w: 1, h: 1 },
+  { x: 9, y: 18, w: 2, h: 1 }, { x: 13, y: 18, w: 1, h: 1 },
+  { x: 8, y: 19, w: 1, h: 1 }, { x: 11, y: 19, w: 1, h: 1 },
+  { x: 9, y: 20, w: 1, h: 1 }, { x: 12, y: 20, w: 1, h: 1 },
+  { x: 14, y: 14, w: 2, h: 1 }, { x: 17, y: 14, w: 1, h: 1 }, { x: 19, y: 14, w: 2, h: 1 },
+  { x: 15, y: 15, w: 1, h: 1 }, { x: 18, y: 15, w: 1, h: 1 },
+  { x: 14, y: 16, w: 1, h: 1 }, { x: 16, y: 16, w: 2, h: 1 }, { x: 20, y: 16, w: 1, h: 1 },
+  { x: 15, y: 17, w: 1, h: 1 }, { x: 17, y: 17, w: 1, h: 1 }, { x: 19, y: 17, w: 2, h: 1 },
+  { x: 14, y: 18, w: 1, h: 1 }, { x: 16, y: 18, w: 1, h: 1 }, { x: 18, y: 18, w: 1, h: 1 },
+  { x: 15, y: 19, w: 2, h: 1 }, { x: 19, y: 19, w: 1, h: 1 },
+  { x: 14, y: 20, w: 1, h: 1 }, { x: 17, y: 20, w: 2, h: 1 }, { x: 20, y: 20, w: 1, h: 1 },
+  { x: 8, y: 0, w: 1, h: 1 }, { x: 10, y: 0, w: 1, h: 1 }, { x: 12, y: 0, w: 1, h: 1 },
+  { x: 9, y: 1, w: 1, h: 1 }, { x: 11, y: 1, w: 2, h: 1 },
+  { x: 8, y: 2, w: 2, h: 1 }, { x: 12, y: 2, w: 1, h: 1 },
+  { x: 9, y: 3, w: 1, h: 1 }, { x: 11, y: 3, w: 1, h: 1 },
+  { x: 8, y: 4, w: 1, h: 1 }, { x: 10, y: 4, w: 2, h: 1 },
+  { x: 9, y: 5, w: 1, h: 1 }, { x: 12, y: 5, w: 1, h: 1 },
+  { x: 0, y: 8, w: 1, h: 1 }, { x: 2, y: 8, w: 2, h: 1 }, { x: 5, y: 8, w: 1, h: 1 },
+  { x: 1, y: 9, w: 1, h: 1 }, { x: 3, y: 9, w: 1, h: 1 },
+  { x: 0, y: 10, w: 2, h: 1 }, { x: 4, y: 10, w: 2, h: 1 },
+  { x: 1, y: 11, w: 1, h: 1 }, { x: 3, y: 11, w: 1, h: 1 }, { x: 5, y: 11, w: 1, h: 1 },
+  { x: 0, y: 12, w: 1, h: 1 }, { x: 2, y: 12, w: 1, h: 1 }, { x: 4, y: 12, w: 1, h: 1 },
+];
+
+// ── PDF real (jsPDF, dibujo vectorial nativo) ─────────────────────────────
+// Deliberadamente NO usa html2canvas: rasterizar el HTML tenía un bug de
+// html2canvas (dependiente de navegador/timing, no reproducible siempre)
+// que rotaba números en celdas angostas. Dibujando texto y tabla con las
+// primitivas nativas de jsPDF ese bug no puede ocurrir — no hay DOM ni
+// canvas de por medio.
+
+export async function descargarBoletaVentaPdf(data: BoletaVentaData): Promise<void> {
+  // Se abre ya, en blanco, como primera instrucción — todavía dentro del gesto de click del
+  // usuario, para que el navegador no lo bloquee como popup.
+  const nuevaVentana = window.open("", "_blank");
+
+  const { default: jsPDF } = await import("jspdf");
+  const { default: autoTable } = await import("jspdf-autotable");
+
+  const { nroDoc, fecha, moneda, condicionVenta, condicionLabel, clienteRazonSocial, clienteDocumento, clienteDireccion, items, resumen, totalAbonar, cdc } = data;
+
+  const pdf = new jsPDF({ unit: "mm", format: "a4" });
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  const marginX = 10;
+  const contentWidth = pageWidth - marginX * 2;
+  const negro: [number, number, number] = [17, 17, 17];
+  const gris: [number, number, number] = [90, 90, 90];
+
+  pdf.setDrawColor(...negro);
+  pdf.setTextColor(...negro);
+
+  const labelValor = (x: number, y: number, label: string, valor: string, fontSize = 9) => {
+    pdf.setFontSize(fontSize);
+    pdf.setFont("helvetica", "bold");
+    pdf.text(label, x, y);
+    const anchoLabel = pdf.getTextWidth(`${label} `);
+    pdf.setFont("helvetica", "normal");
+    pdf.text(valor, x + anchoLabel, y);
+  };
+
+  // ── Tarjeta encabezado ───────────────────────────────────────────────
+  const hcY = 10;
+  const hcH = 30;
+  pdf.setLineWidth(0.5);
+  pdf.rect(marginX, hcY, contentWidth, hcH);
+  const hcMidX = marginX + contentWidth / 2;
+  pdf.line(hcMidX, hcY, hcMidX, hcY + hcH);
+
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(20);
+  pdf.text("Ya Factura", marginX + 4, hcY + 11);
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(8);
+  pdf.setTextColor(...gris);
+  pdf.text("Sistema Administrativo", marginX + 4, hcY + 16);
+  pdf.setTextColor(...negro);
+  pdf.setFontSize(7);
+  const tagline = pdf.splitTextToSize(
+    "Actividades Relacionadas al Analisis y Desarrollo de Sistemas",
+    contentWidth / 2 - 8
+  );
+  pdf.text(tagline, marginX + 4, hcY + 23);
+
+  const hcRightX = hcMidX + 4;
+  const hcRightEdge = marginX + contentWidth - 4;
+  labelValor(hcRightX, hcY + 6, "Fecha:", fecha.toLocaleDateString("es-PY"), 8);
+  labelValor(hcRightX, hcY + 10, "Moneda:", moneda, 8);
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(13);
+  pdf.text("FACTURA", hcRightEdge, hcY + 19, { align: "right" });
+  pdf.setFontSize(12);
+  pdf.text(nroDoc, hcRightEdge, hcY + 26, { align: "right" });
+
+  // ── Tarjeta cliente ──────────────────────────────────────────────────
+  const ccY = hcY + hcH + 3;
+  const ccH = clienteDireccion ? 30 : 24;
+  pdf.setLineWidth(0.5);
+  pdf.rect(marginX, ccY, contentWidth, ccH);
+
+  let ly = ccY + 8;
+  labelValor(marginX + 4, ly, "Fecha y hora de emisión:", fecha.toLocaleString("es-PY"));
+  ly += 6;
+  labelValor(marginX + 4, ly, "Nombre o Razón Social:", clienteRazonSocial);
+  ly += 6;
+  labelValor(marginX + 4, ly, "RUC N° de C.I.:", clienteDocumento);
+  if (clienteDireccion) {
+    ly += 6;
+    labelValor(marginX + 4, ly, "Dirección:", clienteDireccion);
+  }
+
+  const ccRightX = hcMidX + 4;
+  let ry = ccY + 8;
+  pdf.setFontSize(9);
+  pdf.setFont("helvetica", "bold");
+  pdf.text("Condición de venta:", ccRightX, ry);
+  let cx = ccRightX + pdf.getTextWidth("Condición de venta: ") + 2;
+  const dibujarCheckbox = (x: number, y: number, marcado: boolean, texto: string) => {
+    pdf.setFont("helvetica", "normal");
+    pdf.text(texto, x, y);
+    const w = pdf.getTextWidth(`${texto} `);
+    const boxX = x + w;
+    const boxSize = 3.2;
+    pdf.rect(boxX, y - boxSize + 0.8, boxSize, boxSize);
+    if (marcado) {
+      pdf.setFont("helvetica", "bold");
+      pdf.text("X", boxX + boxSize / 2, y - 0.4, { align: "center" });
+    }
+    return boxX + boxSize + 4;
+  };
+  cx = dibujarCheckbox(cx, ry, condicionVenta === 1, "Contado:");
+  dibujarCheckbox(cx, ry, condicionVenta !== 1, "Crédito:");
+  ry += 8;
+  labelValor(ccRightX, ry, "Condición de pago:", condicionLabel, 9);
+  ry += 7;
+  labelValor(ccRightX, ry, "Moneda:", moneda, 9);
+
+  // ── Tabla de ítems + totales ─────────────────────────────────────────
+  autoTable(pdf, {
+    startY: ccY + ccH + 3,
+    margin: { left: marginX, right: marginX },
+    theme: "grid",
+    styles: {
+      font: "helvetica",
+      fontSize: 8,
+      cellPadding: 1.8,
+      lineColor: negro,
+      lineWidth: 0.3,
+      textColor: negro,
+      valign: "middle",
+    },
+    headStyles: { fillColor: [216, 216, 216], textColor: negro, fontStyle: "bold", halign: "center" },
+    columnStyles: {
+      0: { cellWidth: 20, halign: "center" },
+      1: { cellWidth: "auto", halign: "left" },
+      2: { cellWidth: 16, halign: "center" },
+      3: { cellWidth: 23, halign: "right" },
+      4: { cellWidth: 23, halign: "right" },
+      5: { cellWidth: 23, halign: "right" },
+      6: { cellWidth: 23, halign: "right" },
+    },
+    head: [["Código", "Descripción", "Cant.", "P. Unit.", "Exentas", "5%", "10%"]],
+    body: items.map((item) => [
+      item.codigo,
+      item.descripcion,
+      String(item.cantidad),
+      fmtNum(item.precioUnitario, moneda),
+      fmtNum(item.exenta, moneda),
+      fmtNum(item.iva5, moneda),
+      fmtNum(item.iva10, moneda),
+    ]),
+    foot: [
+      [
+        { content: "SUBTOTAL:", colSpan: 4, styles: { halign: "left", fontStyle: "bold", fillColor: [239, 239, 239] } },
+        { content: fmtNum(resumen.totalExenta, moneda), styles: { halign: "right", fontStyle: "bold", fillColor: [239, 239, 239] } },
+        { content: fmtNum(resumen.subtotalIva5, moneda), styles: { halign: "right", fontStyle: "bold", fillColor: [239, 239, 239] } },
+        { content: fmtNum(resumen.subtotalIva10, moneda), styles: { halign: "right", fontStyle: "bold", fillColor: [239, 239, 239] } },
+      ],
+      [
+        { content: "TOTAL DE LA OPERACIÓN:", colSpan: 6, styles: { halign: "left", fontStyle: "bold", fontSize: 9.5, fillColor: [224, 224, 224] } },
+        { content: fmtNum(totalAbonar, moneda), styles: { halign: "right", fontStyle: "bold", fontSize: 9.5, fillColor: [224, 224, 224] } },
+      ],
+      [
+        { content: "LIQUIDACIÓN IVA:", colSpan: 2, styles: { halign: "left", fontStyle: "bold", fontSize: 7.5, fillColor: [248, 248, 248] } },
+        { content: "(5%)", styles: { halign: "center", fontSize: 7.5, fillColor: [248, 248, 248] } },
+        { content: fmtNum(resumen.liquidacionIva5, moneda), styles: { halign: "right", fontSize: 7.5, fillColor: [248, 248, 248] } },
+        { content: "(10%)", styles: { halign: "center", fontSize: 7.5, fillColor: [248, 248, 248] } },
+        { content: fmtNum(resumen.liquidacionIva10, moneda), styles: { halign: "right", fontSize: 7.5, fillColor: [248, 248, 248] } },
+        { content: `TOTAL IVA: ${fmtNum(resumen.totalIva, moneda)}`, styles: { halign: "right", fontStyle: "bold", fontSize: 7.5, fillColor: [248, 248, 248] } },
+      ],
+    ],
+  });
+
+  let qrY = (pdf as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 4;
+
+  // ── Sección QR + CDC ─────────────────────────────────────────────────
+  const qrBoxSize = 26;
+  const qrSectionH = 52;
+  if (qrY + qrSectionH > pageHeight - marginX) {
+    pdf.addPage();
+    qrY = marginX;
+  }
+
+  pdf.setLineWidth(0.5);
+  pdf.rect(marginX, qrY, contentWidth, qrSectionH);
+
+  const qrBoxX = marginX + 5;
+  const qrBoxY = qrY + 5;
+  pdf.setDrawColor(150, 150, 150);
+  pdf.setLineWidth(0.2);
+  pdf.rect(qrBoxX, qrBoxY, qrBoxSize, qrBoxSize);
+  const celda = qrBoxSize / 21;
+  pdf.setFillColor(...negro);
+  for (const r of QR_PATTERN_21x21) {
+    pdf.rect(qrBoxX + r.x * celda, qrBoxY + r.y * celda, r.w * celda, r.h * celda, "F");
+  }
+  pdf.setDrawColor(...negro);
+
+  const qrInfoX = qrBoxX + qrBoxSize + 8;
+  pdf.setFontSize(9.5);
+  pdf.setFont("helvetica", "bold");
+  const consultaTexto = pdf.splitTextToSize(
+    "Consulte la validez de este comprobante con el CDC impreso abajo:",
+    contentWidth - qrBoxSize - 20
+  );
+  pdf.text(consultaTexto, qrInfoX, qrY + 9);
+
+  pdf.setFontSize(11);
+  const cdcTexto = `${cdc ? "CDC: " : ""}${fmtCdc(cdc)}`;
+  const cdcLineas = pdf.splitTextToSize(cdcTexto, contentWidth - qrBoxSize - 20);
+  pdf.text(cdcLineas, qrInfoX, qrY + 9 + consultaTexto.length * 5 + 4);
+
+  const legalY = qrY + qrBoxSize + 10;
+  pdf.setLineWidth(0.2);
+  pdf.setDrawColor(180, 180, 180);
+  pdf.line(marginX + 4, legalY, marginX + contentWidth - 4, legalY);
+  pdf.setDrawColor(...negro);
+
+  pdf.setFontSize(8.5);
+  pdf.setFont("helvetica", "bold");
+  pdf.text("ESTE DOCUMENTO ES UNA REPRESENTACIÓN GRÁFICA DE UN COMPROBANTE DE VENTA", marginX + 4, legalY + 5);
+  pdf.setFont("helvetica", "normal");
+  pdf.text(
+    "Si este comprobante presenta algún error, podrá solicitar su corrección dentro de las 48 horas siguientes a la emisión.",
+    marginX + 4,
+    legalY + 10
+  );
+  pdf.text("Gracias por su compra", marginX + 4, legalY + 15);
+
+  const blobUrl = URL.createObjectURL(pdf.output("blob"));
+
+  // Ni window.open(blobUrl) ni <a target="_blank" href="dataUri"> navegan de forma confiable
+  // a nivel superior en Chromium (quedan en about:blank o ni siquiera abren pestaña — son
+  // restricciones conocidas de ese navegador para navegación de nivel superior a blob:/data:).
+  // Insertar un <iframe> apuntando a la URL blob: dentro de la pestaña ya abierta sí funciona,
+  // porque es una carga de subrecurso, no una navegación de nivel superior.
+  if (nuevaVentana) {
+    nuevaVentana.document.title = `Factura ${nroDoc}`;
+    nuevaVentana.document.body.style.margin = "0";
+    const visor = nuevaVentana.document.createElement("iframe");
+    visor.src = blobUrl;
+    visor.style.width = "100vw";
+    visor.style.height = "100vh";
+    visor.style.border = "none";
+    nuevaVentana.document.body.appendChild(visor);
+  } else {
+    // Popup bloqueado por el navegador: se recurre a la descarga directa.
+    pdf.save(`factura-${nroDoc}.pdf`);
+  }
 }

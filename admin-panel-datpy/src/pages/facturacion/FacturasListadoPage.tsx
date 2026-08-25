@@ -14,7 +14,7 @@ import { Tag } from "primereact/tag";
 import type { FacturaListadoFiltros } from "../../services/FacturaService";
 import { FacturaService } from "../../services/FacturaService";
 import { CajaAperturaCierreService } from "../../services/CajaAperturaCierreService";
-import { abrirBoletaVenta } from "../../comprobantes/invoices";
+import { descargarBoletaVentaPdf } from "../../comprobantes/invoices";
 
 interface FacturaListado {
   id: string;
@@ -27,6 +27,8 @@ interface FacturaListado {
   clienteDocumento: string;
   total: number;
   estado: string;
+  cdc?: string;
+  estadoSifen?: string;
 }
 
 const condicionesVenta = [
@@ -67,6 +69,8 @@ export default function FacturasListadoPage() {
 
   const [loadingInforme, setLoadingInforme] = useState<string | null>(null);
   const [loadingNuevaFactura, setLoadingNuevaFactura] = useState(false);
+  const [loadingSifen, setLoadingSifen] = useState<string | null>(null);
+  const [loadingXml, setLoadingXml] = useState<string | null>(null);
   const isMobile = useIsMobile();
 
   const obtenerFiltros = (): FacturaListadoFiltros => ({
@@ -222,20 +226,128 @@ const estadoBody = (rowData: FacturaListado) => {
     );
   };
 
+  const copiarCdc = async (cdc: string) => {
+    try {
+      await navigator.clipboard.writeText(cdc);
+      Swal.fire({ toast: true, position: "top-end", icon: "success", title: "CDC copiado", showConfirmButton: false, timer: 1200 });
+    } catch {
+      Swal.fire("Error", "No se pudo copiar el CDC", "error");
+    }
+  };
+
+  const sifenEstadoBody = (rowData: FacturaListado) => {
+    if (!rowData.cdc) {
+      return <Tag value="Sin enviar" severity="secondary" />;
+    }
+
+    const estado = rowData.estadoSifen || "Pendiente";
+    const estadoUpper = estado.toUpperCase();
+
+    const severity =
+      estadoUpper === "APROBADO" || estadoUpper === "APROBADO_CON_OBSERVACION"
+        ? "success"
+        : estadoUpper === "RECHAZADO"
+        ? "danger"
+        : estadoUpper === "CANCELADO"
+        ? "danger"
+        : "warning";
+
+    return <Tag value={estado} severity={severity as any} />;
+  };
+
+  const cdcBody = (rowData: FacturaListado) => {
+    if (!rowData.cdc) return "-";
+
+    return (
+      <div className="flex align-items-center gap-2">
+        <span style={{ fontFamily: "monospace", whiteSpace: "nowrap" }}>{rowData.cdc}</span>
+        <Button
+          icon="pi pi-copy"
+          text
+          rounded
+          size="small"
+          tooltip="Copiar CDC completo"
+          onClick={() => copiarCdc(rowData.cdc!)}
+        />
+      </div>
+    );
+  };
+
+  const enviarASifen = async (factura: FacturaListado) => {
+    try {
+      setLoadingSifen(factura.id);
+      const res = await FacturaService.enviarSifen(factura.id);
+
+      Swal.fire({
+        icon: res.estado === "RECHAZADO" ? "error" : "success",
+        title: "SIFEN",
+        html: `<div style="text-align:left"><b>Estado:</b> ${res.estado ?? "-"}<br/><b>CDC:</b> ${res.cdc ?? "-"}<br/><b>Mensaje:</b> ${res.mensajeRespuesta ?? "-"}</div>`
+      });
+
+      cargarFacturas();
+    } catch (error: any) {
+      console.error(error);
+      const mensaje = error?.response?.data?.message ?? "No se pudo enviar la factura a SIFEN";
+      Swal.fire("Error", mensaje, "error");
+    } finally {
+      setLoadingSifen(null);
+    }
+  };
+
+  const verXmlSifen = async (factura: FacturaListado) => {
+    try {
+      setLoadingXml(factura.id);
+      const blob = await FacturaService.getXmlSifen(factura.id);
+      const url = window.URL.createObjectURL(new Blob([blob], { type: "application/xml" }));
+      window.open(url, "_blank");
+    } catch (error) {
+      console.error(error);
+      Swal.fire("Error", "No se pudo obtener el XML de la factura", "error");
+    } finally {
+      setLoadingXml(null);
+    }
+  };
+
   const anularFactura = async (factura: FacturaListado) => {
-    const result = await Swal.fire({
+    if (!factura.cdc) {
+      Swal.fire("Atención", "Esta factura todavía no fue enviada a SIFEN.", "info");
+      return;
+    }
+
+    const { value: motivo, isConfirmed } = await Swal.fire({
       icon: "warning",
-      title: "Anular factura",
-      text: `¿Desea anular la factura ${factura.dEst}-${factura.dPunExp}-${factura.dNumDoc}?`,
+      title: "Cancelar factura en SIFEN",
+      text: `¿Desea solicitar la cancelación de la factura ${factura.dEst}-${factura.dPunExp}-${factura.dNumDoc} en SIFEN?`,
+      input: "textarea",
+      inputLabel: "Motivo de la cancelación",
+      inputPlaceholder: "Indique el motivo...",
+      inputValidator: (value) => (!value?.trim() ? "El motivo es obligatorio" : undefined),
       showCancelButton: true,
-      confirmButtonText: "Sí, anular",
-      cancelButtonText: "Cancelar",
+      confirmButtonText: "Sí, cancelar",
+      cancelButtonText: "Volver",
       confirmButtonColor: "#dc2626"
     });
 
-    if (!result.isConfirmed) return;
+    if (!isConfirmed || !motivo) return;
 
-    Swal.fire("Atención", "Todavía falta crear el endpoint de anulación.", "info");
+    try {
+      setLoadingSifen(factura.id);
+      const res = await FacturaService.cancelarSifen(factura.id, motivo.trim());
+
+      Swal.fire({
+        icon: res.estado === "RECHAZADO" ? "error" : "success",
+        title: "SIFEN",
+        html: `<div style="text-align:left"><b>Estado del evento:</b> ${res.estado ?? "-"}<br/><b>Mensaje:</b> ${res.mensajeRespuesta ?? "-"}</div>`
+      });
+
+      cargarFacturas();
+    } catch (error: any) {
+      console.error(error);
+      const mensaje = error?.response?.data?.message ?? "No se pudo cancelar la factura en SIFEN";
+      Swal.fire("Error", mensaje, "error");
+    } finally {
+      setLoadingSifen(null);
+    }
   };
 
   const verInforme = async (factura: FacturaListado) => {
@@ -243,14 +355,14 @@ const estadoBody = (rowData: FacturaListado) => {
       setLoadingInforme(factura.id);
       const res = await FacturaService.getById(factura.id);
 
-      const condicionVenta = res.condicionOperacionId === 2 ? "CREDITO" : "CONTADO";
-      abrirBoletaVenta({
+      const condicionVenta: number = res.condicionOperacionId ?? 1;
+      await descargarBoletaVentaPdf({
         puntoExpedicion: `${res.dEst}-${res.dPunExp}`,
         nroDoc: `${res.dEst ?? res.dest}-${res.dPunExp ?? res.dpunExp}-${res.dNumDoc ?? res.dnumDoc ?? "0000001"}`,
         fecha: res.dFeEmiDE ? new Date(res.dFeEmiDE) : new Date(),
         moneda: res.moneda ?? "PYG",
         condicionVenta,
-        condicionLabel: condicionVenta === "CONTADO" ? "Contado" : "Crédito",
+        condicionLabel: condicionVenta === 1 ? "Contado" : "Crédito",
         clienteRazonSocial: res.dNomRec ?? res.clienteRazonSocial ?? "-",
         clienteDocumento: res.dRucRec
           ? `${res.dRucRec}${res.dDVRec ? "-" + res.dDVRec : ""}`
@@ -280,6 +392,7 @@ const estadoBody = (rowData: FacturaListado) => {
         },
         totalAbonar: Number(res.total ?? 0),
         vuelto: 0,
+        cdc: res.cdc ?? undefined,
       });
     } catch (error) {
       console.error(error);
@@ -290,6 +403,8 @@ const estadoBody = (rowData: FacturaListado) => {
   };
 
   const accionesBody = (rowData: FacturaListado) => {
+    const yaCancelada = (rowData.estadoSifen || "").toUpperCase() === "CANCELADO";
+
     return (
       <div className="flex gap-2 justify-content-end">
         <Button
@@ -303,11 +418,34 @@ const estadoBody = (rowData: FacturaListado) => {
         />
 
         <Button
+          icon="pi pi-send"
+          severity="help"
+          text
+          rounded
+          tooltip={rowData.cdc ? "Actualizar estado SIFEN" : "Enviar a SIFEN"}
+          loading={loadingSifen === rowData.id}
+          onClick={() => enviarASifen(rowData)}
+        />
+
+        {rowData.cdc && (
+          <Button
+            icon="pi pi-code"
+            severity="info"
+            text
+            rounded
+            tooltip="Ver XML"
+            loading={loadingXml === rowData.id}
+            onClick={() => verXmlSifen(rowData)}
+          />
+        )}
+
+        <Button
           icon="pi pi-ban"
           severity="danger"
           text
           rounded
           tooltip="Anular"
+          disabled={yaCancelada}
           onClick={() => anularFactura(rowData)}
         />
       </div>
@@ -511,6 +649,11 @@ const estadoBody = (rowData: FacturaListado) => {
                   <span className="facturas-card-total">{formatMoney(f.total || 0)}</span>
                 </div>
 
+                <div className="facturas-card-row">
+                  {sifenEstadoBody(f)}
+                  {f.cdc && cdcBody(f)}
+                </div>
+
                 <div className="facturas-card-actions">
                   <Button
                     icon="pi pi-file-pdf"
@@ -522,11 +665,32 @@ const estadoBody = (rowData: FacturaListado) => {
                     onClick={() => verInforme(f)}
                   />
                   <Button
+                    icon="pi pi-send"
+                    label={f.cdc ? "Actualizar" : "Enviar"}
+                    severity="help"
+                    text
+                    size="small"
+                    loading={loadingSifen === f.id}
+                    onClick={() => enviarASifen(f)}
+                  />
+                  {f.cdc && (
+                    <Button
+                      icon="pi pi-code"
+                      label="XML"
+                      severity="info"
+                      text
+                      size="small"
+                      loading={loadingXml === f.id}
+                      onClick={() => verXmlSifen(f)}
+                    />
+                  )}
+                  <Button
                     icon="pi pi-ban"
                     label="Anular"
                     severity="danger"
                     text
                     size="small"
+                    disabled={(f.estadoSifen || "").toUpperCase() === "CANCELADO"}
                     onClick={() => anularFactura(f)}
                   />
                 </div>
@@ -557,6 +721,7 @@ const estadoBody = (rowData: FacturaListado) => {
           dataKey="id"
           stripedRows
           size="small"
+          scrollable
           emptyMessage="No hay facturas registradas"
         >
           <Column header="Numeración" body={numeracionBody} />
@@ -566,7 +731,9 @@ const estadoBody = (rowData: FacturaListado) => {
           <Column header="Condición de Venta" body={condicionBody} />
           <Column header="Total" body={totalBody} />
           <Column header="Estado" body={estadoBody} />
-          <Column header="Acciones" body={accionesBody} style={{ width: "120px" }} />
+          <Column header="Estado SIFEN" body={sifenEstadoBody} />
+          <Column header="CDC" body={cdcBody} />
+          <Column header="Acciones" body={accionesBody} style={{ width: "160px" }} />
         </DataTable>
       )}
     </div>
