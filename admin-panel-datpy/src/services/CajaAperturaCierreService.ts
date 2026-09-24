@@ -15,6 +15,40 @@ export interface CajaAperturaCierreFiltros {
   estado?: string;
 }
 
+export interface LineaMonto {
+  forma: string;
+  monto: number;
+}
+
+export interface ComprobantesPorTipo {
+  /** iTiDE: 1 FE · 4 AFE · 5 NCE · 6 NDE · 7 NRE. */
+  tipo: number;
+  emitidos: number;
+  anulados: number;
+  total: number;
+}
+
+/** Arqueo de una apertura de caja (GET /caja/{id}/resumen y respuesta del cierre). */
+export interface CajaResumen {
+  aperturaId: string;
+  nroCaja: number;
+  fechaApertura: string;
+  fechaCierre: string | null;
+  estado: string;
+  montoApertura: number;
+  ventasPorForma: LineaMonto[];
+  cobrosCuentaCorriente: LineaMonto[];
+  egresosPorForma: LineaMonto[];
+  totalVentas: number;
+  totalCobros: number;
+  totalEgresos: number;
+  efectivoEsperado: number;
+  montoCierre: number | null;
+  diferencia: number | null;
+  observacionCierre: string | null;
+  comprobantes: ComprobantesPorTipo[];
+}
+
 export const CajaAperturaCierreService = {
   async getPaginated(
     page: number,
@@ -40,7 +74,26 @@ export const CajaAperturaCierreService = {
   },
 
   async getCajaAbierta(nroCaja: number) {
-    const res = await api.get(`/caja/abierta/${nroCaja}`);
+    // Con empresaId el back busca la caja de ESTA empresa (el nroCaja solo no alcanza).
+    const empresaId = localStorage.getItem("empresaId") || undefined;
+    const res = await api.get(`/caja/abierta/${nroCaja}`, { params: { empresaId } });
+    return res.data;
+  },
+
+  async getResumen(aperturaId: string): Promise<CajaResumen> {
+    const empresaId = localStorage.getItem("empresaId") || undefined;
+    const res = await api.get(`/caja/${aperturaId}/resumen`, { params: { empresaId } });
+    return res.data;
+  },
+
+  /** Cierra la caja con el efectivo contado. Después no se puede emitir contra ella. */
+  async cerrar(aperturaId: string, montoCierre: number, observacion?: string, usuarioCierreId?: string): Promise<CajaResumen> {
+    const res = await api.post(`/caja/${aperturaId}/cierre`, {
+      empresaId: localStorage.getItem("empresaId"),
+      montoCierre,
+      observacion,
+      usuarioCierreId
+    });
     return res.data;
   },
 

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import Swal from "sweetalert2";
 import { useIsMobile } from "../../hooks/useIsMobile";
 
@@ -8,12 +9,19 @@ import { Column } from "primereact/column";
 import { DataTable } from "primereact/datatable";
 import type { DataTablePageEvent } from "primereact/datatable";
 import { Dropdown } from "primereact/dropdown";
+import { MultiSelect } from "primereact/multiselect";
 import { InputText } from "primereact/inputtext";
 import { Tag } from "primereact/tag";
 
 import type { FacturaListadoFiltros } from "../../services/FacturaService";
-import { FacturaService } from "../../services/FacturaService";
-import { CajaAperturaCierreService } from "../../services/CajaAperturaCierreService";
+import {
+  FacturaService,
+  TIPOS_DOCUMENTO_ELECTRONICO,
+  estiloTipoDocumento,
+  nombreTipoDocumento
+} from "../../services/FacturaService";
+import { KudeService } from "../../services/KudeService";
+import { verificarCajaAbierta } from "../../utils/caja";
 import { descargarBoletaVentaPdf } from "../../comprobantes/invoices";
 
 interface FacturaListado {
@@ -23,24 +31,33 @@ interface FacturaListado {
   dPunExp: string;
   dFeEmiDE: string;
   condicionVenta: string;
-  clienteRazonSocial: string;
+  clienteRazonSocial: string | null;
   clienteDocumento: string;
   total: number;
   estado: string;
   cdc?: string;
   estadoSifen?: string;
+  tipoDocumentoElectronico?: number;
+  facturaAsociadaId?: string;
 }
+
+const opcionesTiposDocumento = Object.entries(TIPOS_DOCUMENTO_ELECTRONICO).map(([value, label]) => ({
+  label,
+  value: Number(value)
+}));
+
+const esFactura = (f: FacturaListado) => (f.tipoDocumentoElectronico ?? 1) === 1;
 
 const condicionesVenta = [
   { label: "Contado", value: "CONTADO" },
   { label: "Crédito", value: "CREDITO" }
 ];
 
-const getFechaActual = () => {
-  const fechaActual = new Date();
-  fechaActual.setHours(0, 0, 0, 0);
-
-  return fechaActual;
+/** "2026-09-01" → Date local (sin corrimiento por zona horaria). */
+const parseDateParam = (value: string | null): Date | null => {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const [y, m, d] = value.split("-").map(Number);
+  return new Date(y, m - 1, d);
 };
 
 const formatDateParam = (date: Date | null) => {
@@ -53,14 +70,55 @@ const formatDateParam = (date: Date | null) => {
   return `${year}-${month}-${day}`;
 };
 
-export default function FacturasListadoPage() {
+interface ListadoProps {
+  /** Si se indica, el listado muestra sólo ese tipo (iTiDE) y "Nuevo" lleva a su alta. */
+  tipoFijo?: number;
+  /** Sección "Documentos electrónicos": todos los comprobantes menos las facturas. */
+  soloDocumentos?: boolean;
+  titulo?: string;
+  subtitulo?: string;
+  rutaNuevo?: string;
+  etiquetaNuevo?: string;
+  iconoNuevo?: string;
+}
+
+/** Nombre de la columna del receptor según el tipo de comprobante del listado. */
+const etiquetaReceptor = (tipoFijo?: number) =>
+  tipoFijo === 4 ? "Vendedor" : tipoFijo === 7 ? "Destinatario" : "Cliente";
+
+export default function FacturasListadoPage({
+  tipoFijo,
+  soloDocumentos = false,
+  titulo = "Facturas",
+  subtitulo = "Facturas emitidas",
+  rutaNuevo,
+  etiquetaNuevo = "Nuevo",
+  iconoNuevo = "pi pi-plus"
+}: ListadoProps = {}) {
+  // Las acciones sobre una factura (NC, ND, remitir) sólo se ofrecen en el listado de facturas.
+  const conAccionesDeFactura = tipoFijo === 1;
+  // Con varios tipos en pantalla se muestra la columna y el filtro de tipo.
+  const esListadoGeneral = tipoFijo == null;
+  const opcionesTipo = soloDocumentos
+    ? opcionesTiposDocumento.filter((t) => t.value !== 1)
+    : opcionesTiposDocumento;
+  const conImportes = tipoFijo !== 7; // la remisión no informa valores
   const [facturas, setFacturas] = useState<FacturaListado[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
-  const [fechaDesde, setFechaDesde] = useState<Date | null>(() => getFechaActual());
-  const [fechaHasta, setFechaHasta] = useState<Date | null>(() => getFechaActual());
+  // Filtros iniciales opcionales por URL (?tipo=5&desde=2026-09-01&hasta=2026-09-30), p. ej.
+  // al venir desde una tarjeta del dashboard. Sin fechas el back devuelve todo el historial.
+  const [searchParams] = useSearchParams();
+  const [fechaDesde, setFechaDesde] = useState<Date | null>(() => parseDateParam(searchParams.get("desde")));
+  const [fechaHasta, setFechaHasta] = useState<Date | null>(() => parseDateParam(searchParams.get("hasta")));
   const [condicionVenta, setCondicionVenta] = useState<string | null>(null);
   const [rucCliente, setRucCliente] = useState("");
+  // Filtro de tipo múltiple. Desde la URL: ?tipo=5 (dashboard) o ?tipos=5,6.
+  const [tiposDocumento, setTiposDocumento] = useState<number[]>(() => {
+    if (tipoFijo != null) return [];
+    const crudo = [searchParams.get("tipo"), searchParams.get("tipos")].filter(Boolean).join(",");
+    return Array.from(new Set(crudo.split(",").map(Number).filter((t) => [1, 4, 5, 6, 7].includes(t))));
+  });
 
   const [first, setFirst] = useState(0);
   const [page, setPage] = useState(0);
@@ -77,7 +135,10 @@ export default function FacturasListadoPage() {
     fechaDesde: formatDateParam(fechaDesde),
     fechaHasta: formatDateParam(fechaHasta),
     condicionVenta: condicionVenta ?? "",
-    rucCliente: rucCliente.trim()
+    rucCliente: rucCliente.trim(),
+    tipoDocumento: tipoFijo,
+    tiposDocumento: tipoFijo == null ? tiposDocumento : undefined,
+    excluirFacturas: soloDocumentos
   });
 
   const cargarFacturas = async (
@@ -128,46 +189,41 @@ export default function FacturasListadoPage() {
   };
 
   const limpiarFiltros = () => {
-    const fechaActualDesde = getFechaActual();
-    const fechaActualHasta = getFechaActual();
-    const filtrosLimpios = {
-      fechaDesde: formatDateParam(fechaActualDesde),
-      fechaHasta: formatDateParam(fechaActualHasta),
+    const filtrosLimpios: FacturaListadoFiltros = {
+      fechaDesde: "",
+      fechaHasta: "",
       condicionVenta: "",
-      rucCliente: ""
+      rucCliente: "",
+      tipoDocumento: tipoFijo,
+      tiposDocumento: [],
+      excluirFacturas: soloDocumentos
     };
 
     setSearch("");
-    setFechaDesde(fechaActualDesde);
-    setFechaHasta(fechaActualHasta);
+    setFechaDesde(null);
+    setFechaHasta(null);
     setCondicionVenta(null);
     setRucCliente("");
+    setTiposDocumento([]);
     setFirst(0);
     setPage(0);
     cargarFacturas(0, size, "", filtrosLimpios);
   };
 
-  const nuevaFactura = async () => {
+  /** Toda emisión exige apertura de caja: se verifica antes de entrar a cualquier alta. */
+  const irAEmitir = async (ruta: string) => {
     try {
       setLoadingNuevaFactura(true);
-      await CajaAperturaCierreService.getCajaAbierta(1);
-      window.location.href = "/facturacion-create";
-    } catch {
-      Swal.fire({
-        icon: "warning",
-        title: "Sin apertura de caja",
-        text: "No hay una apertura de caja activa para el día de hoy. Realice la apertura de caja antes de emitir facturas.",
-        confirmButtonText: "Ir a apertura de caja",
-        showCancelButton: true,
-        cancelButtonText: "Cancelar"
-      }).then((result) => {
-        if (result.isConfirmed) {
-          window.location.href = "/apertura-caja";
-        }
-      });
+      if (await verificarCajaAbierta()) {
+        window.location.href = ruta;
+      }
     } finally {
       setLoadingNuevaFactura(false);
     }
+  };
+
+  const nuevoComprobante = () => {
+    if (rutaNuevo) irAEmitir(rutaNuevo);
   };
 
   const formatMoney = (value: number) => {
@@ -188,6 +244,8 @@ export default function FacturasListadoPage() {
   };
 
   const totalBody = (rowData: FacturaListado) => {
+    // La remisión no informa valores.
+    if (rowData.tipoDocumentoElectronico === 7) return "-";
     return formatMoney(rowData.total || 0);
   };
 
@@ -205,7 +263,33 @@ const estadoBody = (rowData: FacturaListado) => {
   return <Tag value={estado} severity={severity as any} />;
 };
 
+  const receptorBody = (rowData: FacturaListado) =>
+    rowData.clienteRazonSocial ??
+    ((rowData.tipoDocumentoElectronico ?? 1) === 7 ? "Traslado entre locales" : "-");
+
+  const tipoBody = (rowData: FacturaListado) => {
+    const tipo = rowData.tipoDocumentoElectronico ?? 1;
+    const { color, icon } = estiloTipoDocumento(tipo);
+    // Mismos colores que las tarjetas de "Documentos Electrónicos" del dashboard.
+    return (
+      <Tag
+        value={nombreTipoDocumento(tipo)}
+        icon={icon}
+        // Estilo suave, como las tarjetas del dashboard: fondo tenue, borde tenue, texto en color.
+        style={{
+          background: `${color}14`,
+          border: `1px solid ${color}40`,
+          color,
+          fontWeight: 600,
+          whiteSpace: "nowrap"
+        }}
+      />
+    );
+  };
+
   const condicionBody = (rowData: FacturaListado) => {
+    // La condición de venta sólo aplica a la factura; NC/ND/NR no la tienen.
+    if (!esFactura(rowData) && rowData.tipoDocumentoElectronico !== 4) return "-";
     const condicion = rowData.condicionVenta || "-";
     const esContado = condicion.toLowerCase() === "contado";
 
@@ -287,7 +371,7 @@ const estadoBody = (rowData: FacturaListado) => {
       cargarFacturas();
     } catch (error: any) {
       console.error(error);
-      const mensaje = error?.response?.data?.message ?? "No se pudo enviar la factura a SIFEN";
+      const mensaje = error?.response?.data?.message ?? "No se pudo enviar el documento a SIFEN";
       Swal.fire("Error", mensaje, "error");
     } finally {
       setLoadingSifen(null);
@@ -302,22 +386,37 @@ const estadoBody = (rowData: FacturaListado) => {
       window.open(url, "_blank");
     } catch (error) {
       console.error(error);
-      Swal.fire("Error", "No se pudo obtener el XML de la factura", "error");
+      Swal.fire("Error", "No se pudo obtener el XML del documento", "error");
     } finally {
       setLoadingXml(null);
     }
   };
 
+  const puedeAnularse = (factura: FacturaListado) => {
+    const estado = (factura.estadoSifen || "").toUpperCase();
+    return estado === "APROBADO" || estado === "APROBADO_CON_OBSERVACION";
+  };
+
   const anularFactura = async (factura: FacturaListado) => {
+    const tipo = nombreTipoDocumento(factura.tipoDocumentoElectronico).toLowerCase();
     if (!factura.cdc) {
-      Swal.fire("Atención", "Esta factura todavía no fue enviada a SIFEN.", "info");
+      Swal.fire("Atención", `Este documento (${tipo}) todavía no fue enviado a SIFEN.`, "info");
+      return;
+    }
+
+    if (!puedeAnularse(factura)) {
+      Swal.fire(
+        "Atención",
+        "Sólo se puede solicitar la cancelación de un documento aprobado por SIFEN.",
+        "info"
+      );
       return;
     }
 
     const { value: motivo, isConfirmed } = await Swal.fire({
       icon: "warning",
-      title: "Cancelar factura en SIFEN",
-      text: `¿Desea solicitar la cancelación de la factura ${factura.dEst}-${factura.dPunExp}-${factura.dNumDoc} en SIFEN?`,
+      title: "Cancelar en SIFEN",
+      text: `¿Desea solicitar la cancelación de la ${tipo} ${factura.dEst}-${factura.dPunExp}-${factura.dNumDoc} en SIFEN?`,
       input: "textarea",
       inputLabel: "Motivo de la cancelación",
       inputPlaceholder: "Indique el motivo...",
@@ -343,10 +442,60 @@ const estadoBody = (rowData: FacturaListado) => {
       cargarFacturas();
     } catch (error: any) {
       console.error(error);
-      const mensaje = error?.response?.data?.message ?? "No se pudo cancelar la factura en SIFEN";
+      const mensaje = error?.response?.data?.message ?? "No se pudo cancelar el documento en SIFEN";
       Swal.fire("Error", mensaje, "error");
     } finally {
       setLoadingSifen(null);
+    }
+  };
+
+  const emitirNotaCredito = (factura: FacturaListado) => {
+    if (!esFactura(factura)) {
+      Swal.fire("Atención", "La nota de crédito sólo se emite sobre una factura.", "info");
+      return;
+    }
+    if (!puedeAnularse(factura)) {
+      Swal.fire("Atención", "Sólo se puede emitir una nota de crédito sobre una factura aprobada por SIFEN.", "info");
+      return;
+    }
+    // Formulario de NC con la factura precargada (irAEmitir verifica la caja abierta).
+    irAEmitir(`/nota-credito-create?facturaId=${factura.id}`);
+  };
+
+  const emitirNotaDebito = (factura: FacturaListado) => {
+    if (!esFactura(factura) || !puedeAnularse(factura)) {
+      Swal.fire("Atención", "Sólo se puede emitir una nota de débito sobre una factura aprobada por SIFEN.", "info");
+      return;
+    }
+    irAEmitir(`/nota-debito-create?facturaId=${factura.id}`);
+  };
+
+  /**
+   * KuDE oficial: el front pide el rDE al back y lo manda directo a kude-renderer, que
+   * devuelve el PDF. Si algo falla, ofrece la boleta interna como respaldo.
+   */
+  const verKude = async (factura: FacturaListado) => {
+    try {
+      setLoadingInforme(factura.id);
+      const xmlBlob = await FacturaService.getRdeParaKude(factura.id);
+      const xml = await xmlBlob.text();
+      const pdf = await KudeService.render(xml, "a4");
+      const url = window.URL.createObjectURL(pdf);
+      window.open(url, "_blank");
+      setTimeout(() => window.URL.revokeObjectURL(url), 60_000);
+    } catch (error) {
+      console.error(error);
+      const r = await Swal.fire({
+        icon: "warning",
+        title: "No se pudo generar el KuDE",
+        text: "¿Querés ver la boleta interna en su lugar?",
+        showCancelButton: true,
+        confirmButtonText: "Ver boleta",
+        cancelButtonText: "Cerrar",
+      });
+      if (r.isConfirmed) await verInforme(factura);
+    } finally {
+      setLoadingInforme(null);
     }
   };
 
@@ -403,8 +552,6 @@ const estadoBody = (rowData: FacturaListado) => {
   };
 
   const accionesBody = (rowData: FacturaListado) => {
-    const yaCancelada = (rowData.estadoSifen || "").toUpperCase() === "CANCELADO";
-
     return (
       <div className="flex gap-2 justify-content-end">
         <Button
@@ -412,9 +559,9 @@ const estadoBody = (rowData: FacturaListado) => {
           severity="info"
           text
           rounded
-          tooltip="Ver / Imprimir"
+          tooltip="Ver / Imprimir KuDE"
           loading={loadingInforme === rowData.id}
-          onClick={() => verInforme(rowData)}
+          onClick={() => verKude(rowData)}
         />
 
         <Button
@@ -439,13 +586,49 @@ const estadoBody = (rowData: FacturaListado) => {
           />
         )}
 
+        {conAccionesDeFactura && (
+          <>
+        <Button
+          icon="pi pi-replay"
+          severity="warning"
+          text
+          rounded
+          tooltip="Nota de crédito"
+          disabled={!esFactura(rowData) || !puedeAnularse(rowData)}
+          loading={loadingSifen === rowData.id}
+          onClick={() => emitirNotaCredito(rowData)}
+        />
+
+        <Button
+          icon="pi pi-truck"
+          severity="secondary"
+          text
+          rounded
+          tooltip="Nota de remisión"
+          disabled={!esFactura(rowData)}
+          onClick={() => irAEmitir(`/nota-remision-create?facturaId=${rowData.id}`)}
+        />
+
+        <Button
+          icon="pi pi-plus-circle"
+          severity="secondary"
+          text
+          rounded
+          tooltip="Nota de débito"
+          disabled={!esFactura(rowData) || !puedeAnularse(rowData)}
+          onClick={() => emitirNotaDebito(rowData)}
+        />
+
+          </>
+        )}
+
         <Button
           icon="pi pi-ban"
           severity="danger"
           text
           rounded
           tooltip="Anular"
-          disabled={yaCancelada}
+          disabled={!puedeAnularse(rowData)}
           onClick={() => anularFactura(rowData)}
         />
       </div>
@@ -506,6 +689,7 @@ const estadoBody = (rowData: FacturaListado) => {
           display: flex;
           gap: 4px;
           justify-content: flex-end;
+          flex-wrap: wrap;
           margin-top: 8px;
           border-top: 1px solid #f3f4f6;
           padding-top: 8px;
@@ -535,18 +719,20 @@ const estadoBody = (rowData: FacturaListado) => {
       {/* Header */}
       <div className="flex justify-content-between align-items-start mb-4" style={{ flexWrap: "wrap", gap: "10px" }}>
         <div>
-          <h2 className="m-0" style={{ fontSize: isMobile ? "18px" : undefined }}>Listado de facturas</h2>
-          <small className="text-color-secondary">Consulta de facturas emitidas</small>
+          <h2 className="m-0" style={{ fontSize: isMobile ? "18px" : undefined }}>{titulo}</h2>
+          <small className="text-color-secondary">{subtitulo}</small>
         </div>
+{rutaNuevo && (
         <Button
-          label={isMobile ? undefined : "Nueva factura"}
-          icon="pi pi-plus"
+          label={isMobile ? undefined : etiquetaNuevo}
+          icon={iconoNuevo}
           severity="success"
           loading={loadingNuevaFactura}
-          onClick={nuevaFactura}
-          tooltip={isMobile ? "Nueva factura" : undefined}
+          onClick={nuevoComprobante}
+          tooltip={isMobile ? etiquetaNuevo : undefined}
           tooltipOptions={{ position: "left" }}
         />
+        )}
       </div>
 
       {/* Filtros */}
@@ -568,6 +754,7 @@ const estadoBody = (rowData: FacturaListado) => {
             className="w-full"
             inputClassName="w-full"
             value={fechaDesde}
+            placeholder="Todas"
             dateFormat="dd/mm/yy"
             showIcon
             showButtonBar
@@ -582,6 +769,7 @@ const estadoBody = (rowData: FacturaListado) => {
             className="w-full"
             inputClassName="w-full"
             value={fechaHasta}
+            placeholder="Todas"
             dateFormat="dd/mm/yy"
             showIcon
             showButtonBar
@@ -601,6 +789,29 @@ const estadoBody = (rowData: FacturaListado) => {
             onChange={(e) => setCondicionVenta(e.value)}
           />
         </div>
+
+        {esListadoGeneral && (
+          <div className="col-6 md:col-6 lg:col-2">
+            <label>Tipo de comprobante</label>
+            <MultiSelect
+              className="w-full"
+              value={tiposDocumento}
+              options={opcionesTipo}
+              placeholder="Todos"
+              showClear
+              display="chip"
+              maxSelectedLabels={2}
+              selectedItemsLabel="{0} tipos"
+              itemTemplate={(opcion: { label: string; value: number }) => (
+                <span className="flex align-items-center gap-2">
+                  <i className={estiloTipoDocumento(opcion.value).icon} style={{ color: estiloTipoDocumento(opcion.value).color }} />
+                  {opcion.label}
+                </span>
+              )}
+              onChange={(e) => setTiposDocumento(e.value ?? [])}
+            />
+          </div>
+        )}
 
         <div className="col-6 md:col-6 lg:col-2">
           <label>RUC cliente</label>
@@ -625,29 +836,32 @@ const estadoBody = (rowData: FacturaListado) => {
           {loading ? (
             <div className="facturas-empty">Cargando...</div>
           ) : facturas.length === 0 ? (
-            <div className="facturas-empty">No hay facturas registradas</div>
+            <div className="facturas-empty">No hay comprobantes registrados</div>
           ) : (
             facturas.map((f) => (
               <div key={f.id} className="facturas-card">
                 <div className="facturas-card-header">
                   <div>
                     <div className="facturas-card-num">{`${f.dEst}-${f.dPunExp}-${f.dNumDoc}`}</div>
+                    {esListadoGeneral && <div style={{ margin: "4px 0" }}>{tipoBody(f)}</div>}
                     <div className="facturas-card-doc">{fechaBody(f)}</div>
                   </div>
                   {estadoBody(f)}
                 </div>
 
                 <div className="facturas-card-cliente">
-                  {f.clienteRazonSocial}
+                  {receptorBody(f)}
                   {f.clienteDocumento && (
                     <span className="facturas-card-doc"> · {f.clienteDocumento}</span>
                   )}
                 </div>
 
-                <div className="facturas-card-row">
-                  {condicionBody(f)}
-                  <span className="facturas-card-total">{formatMoney(f.total || 0)}</span>
-                </div>
+                {conImportes && (
+                  <div className="facturas-card-row">
+                    {condicionBody(f)}
+                    <span className="facturas-card-total">{formatMoney(f.total || 0)}</span>
+                  </div>
+                )}
 
                 <div className="facturas-card-row">
                   {sifenEstadoBody(f)}
@@ -657,12 +871,12 @@ const estadoBody = (rowData: FacturaListado) => {
                 <div className="facturas-card-actions">
                   <Button
                     icon="pi pi-file-pdf"
-                    label="Ver"
+                    label="KuDE"
                     severity="info"
                     text
                     size="small"
                     loading={loadingInforme === f.id}
-                    onClick={() => verInforme(f)}
+                    onClick={() => verKude(f)}
                   />
                   <Button
                     icon="pi pi-send"
@@ -684,13 +898,45 @@ const estadoBody = (rowData: FacturaListado) => {
                       onClick={() => verXmlSifen(f)}
                     />
                   )}
+                  {conAccionesDeFactura && (
+                    <>
+                  <Button
+                    icon="pi pi-replay"
+                    label="N. Crédito"
+                    severity="warning"
+                    text
+                    size="small"
+                    disabled={!esFactura(f) || !puedeAnularse(f)}
+                    loading={loadingSifen === f.id}
+                    onClick={() => emitirNotaCredito(f)}
+                  />
+                  <Button
+                    icon="pi pi-truck"
+                    label="Remitir"
+                    severity="secondary"
+                    text
+                    size="small"
+                    disabled={!esFactura(f)}
+                    onClick={() => irAEmitir(`/nota-remision-create?facturaId=${f.id}`)}
+                  />
+                  <Button
+                    icon="pi pi-plus-circle"
+                    label="N. Débito"
+                    severity="secondary"
+                    text
+                    size="small"
+                    disabled={!esFactura(f) || !puedeAnularse(f)}
+                    onClick={() => emitirNotaDebito(f)}
+                  />
+                    </>
+                  )}
                   <Button
                     icon="pi pi-ban"
                     label="Anular"
                     severity="danger"
                     text
                     size="small"
-                    disabled={(f.estadoSifen || "").toUpperCase() === "CANCELADO"}
+                    disabled={!puedeAnularse(f)}
                     onClick={() => anularFactura(f)}
                   />
                 </div>
@@ -722,20 +968,24 @@ const estadoBody = (rowData: FacturaListado) => {
           stripedRows
           size="small"
           scrollable
-          emptyMessage="No hay facturas registradas"
+          emptyMessage="No hay comprobantes registrados"
         >
+          {esListadoGeneral && <Column header="Tipo" body={tipoBody} />}
           <Column header="Numeración" body={numeracionBody} />
           <Column header="Fecha" body={fechaBody} />
-          <Column field="clienteRazonSocial" header="Cliente" />
+          <Column header={etiquetaReceptor(tipoFijo)} body={receptorBody} />
           <Column field="clienteDocumento" header="Documento" />
-          <Column header="Condición de Venta" body={condicionBody} />
-          <Column header="Total" body={totalBody} />
+          {conImportes && tipoFijo !== 5 && tipoFijo !== 6 && (
+            <Column header={tipoFijo === 4 ? "Condición" : "Condición de Venta"} body={condicionBody} />
+          )}
+          {conImportes && <Column header="Total" body={totalBody} />}
           <Column header="Estado" body={estadoBody} />
           <Column header="Estado SIFEN" body={sifenEstadoBody} />
           <Column header="CDC" body={cdcBody} />
-          <Column header="Acciones" body={accionesBody} style={{ width: "160px" }} />
+          <Column header="Acciones" body={accionesBody} style={{ width: conAccionesDeFactura ? "290px" : "170px" }} />
         </DataTable>
       )}
+
     </div>
   );
 }

@@ -94,3 +94,15 @@
     width: 78px;
   }
 }
+/* Tarjetas de "Documentos Electrónicos": llevan al listado de cada tipo. */
+.dashboard-doc-tile {
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.dashboard-doc-tile:hover,
+.dashboard-doc-tile:focus-visible {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+  outline: none;
+}

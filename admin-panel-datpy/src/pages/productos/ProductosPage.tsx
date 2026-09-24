@@ -16,11 +16,13 @@ import { MarcaService } from "../../services/MarcasService";
 import { SubFamiliaService } from "../../services/SubFamiliaService";
 import { AfectacionIvaService } from "../../services/AfectacionIvaService";
 import { InputTextarea } from "primereact/inputtextarea";
+import { resolveAssetUrl } from "../../services/api";
 
 interface ProductoImagen {
     id?: string;
     urlImagen: string;
     esPrincipal?: boolean;
+    ordenVisualizacion?: number;
 }
 
 interface Producto {
@@ -96,8 +98,21 @@ export default function ProductosPage() {
     const [afectacionesIva, setAfectacionesIva] = useState<Opcion[]>([]);
 
     const [form, setForm] = useState<Producto>(crearFormularioInicial());
-    const [imagenesFiles, setImagenesFiles] = useState<File[]>([]);
+    // Un producto admite 3 fotos como máximo: 1 principal + 2 secundarias.
+    // Cada slot guarda el archivo recién elegido (todavía no subido) para
+    // esa posición — se suben junto con el resto del formulario al
+    // presionar "Guardar".
+    const [archivoPrincipal, setArchivoPrincipal] = useState<File | null>(null);
+    const [archivoSecundaria1, setArchivoSecundaria1] = useState<File | null>(null);
+    const [archivoSecundaria2, setArchivoSecundaria2] = useState<File | null>(null);
+    const [procesandoImagen, setProcesandoImagen] = useState(false);
     const isMobile = useIsMobile();
+
+    const limpiarArchivosImagen = () => {
+        setArchivoPrincipal(null);
+        setArchivoSecundaria1(null);
+        setArchivoSecundaria2(null);
+    };
 
     const opcionesIva = [
         { label: "Exento 0%", value: 0 },
@@ -184,14 +199,14 @@ export default function ProductosPage() {
         setOpen(false);
         setViewMode(false);
         setEditing(null);
-        setImagenesFiles([]);
+        limpiarArchivosImagen();
         setForm(crearFormularioInicial());
     };
 
     const abrirNuevo = () => {
         setEditing(null);
         setViewMode(false);
-        setImagenesFiles([]);
+        limpiarArchivosImagen();
         setForm(crearFormularioInicial());
         setOpen(true);
     };
@@ -202,7 +217,7 @@ export default function ProductosPage() {
             setViewMode(true);
             setEditing(data);
             setForm(data);
-            setImagenesFiles([]);
+            limpiarArchivosImagen();
             setOpen(true);
         } catch (error) {
             Swal.fire("Error", "No se pudo cargar el producto", "error");
@@ -215,7 +230,7 @@ export default function ProductosPage() {
             setViewMode(false);
             setEditing(data);
             setForm(data);
-            setImagenesFiles([]);
+            limpiarArchivosImagen();
             setOpen(true);
         } catch (error) {
             Swal.fire("Error", "No se pudo cargar el producto", "error");
@@ -239,8 +254,17 @@ export default function ProductosPage() {
                 return;
             }
 
+            // Orden intencional: si todavía no hay una foto principal
+            // guardada, el backend marca como principal la primera imagen
+            // nueva que llega — mandar el archivo del slot "Principal"
+            // primero asegura que quede en ese rol aunque el usuario haya
+            // dejado ese slot vacío y sólo haya cargado una secundaria.
+            const archivosNuevos = [archivoPrincipal, archivoSecundaria1, archivoSecundaria2].filter(
+                (archivo): archivo is File => archivo !== null
+            );
+
             if (editing?.id) {
-                await ProductosService.update(editing.id, form, imagenesFiles);
+                await ProductosService.update(editing.id, form, archivosNuevos);
 
                 Swal.fire(
                     "Actualizado",
@@ -248,7 +272,7 @@ export default function ProductosPage() {
                     "success"
                 );
             } else {
-                await ProductosService.create(form, imagenesFiles);
+                await ProductosService.create(form, archivosNuevos);
 
                 Swal.fire(
                     "Creado",
@@ -262,6 +286,57 @@ export default function ProductosPage() {
         } catch (error) {
             console.error("Error guardando producto", error);
             Swal.fire("Error", "No se pudo guardar el producto", "error");
+        }
+    };
+
+    // Quitar/marcar-principal actúan sobre fotos ya guardadas en el
+    // servidor, así que tienen efecto inmediato (no esperan al botón
+    // "Guardar" del formulario) — se refleja recargando el producto.
+    const recargarImagenes = async () => {
+        if (!editing?.id) return;
+        try {
+            const data = await ProductosService.getById(editing.id);
+            setForm((prev) => ({ ...prev, imagenes: data.imagenes ?? [] }));
+            setEditing((prev) => (prev ? { ...prev, imagenes: data.imagenes ?? [] } : prev));
+        } catch (error) {
+            console.error("Error recargando las fotos del producto", error);
+        }
+    };
+
+    const quitarImagenExistente = async (imagenId?: string) => {
+        if (!editing?.id || !imagenId) return;
+        const confirmacion = await Swal.fire({
+            title: "¿Quitar esta foto?",
+            icon: "warning",
+            showCancelButton: true,
+            confirmButtonText: "Quitar",
+            cancelButtonText: "Cancelar"
+        });
+        if (!confirmacion.isConfirmed) return;
+
+        try {
+            setProcesandoImagen(true);
+            await ProductosService.removeImage(editing.id, imagenId);
+            await recargarImagenes();
+        } catch (error) {
+            console.error("Error quitando la foto", error);
+            Swal.fire("Error", "No se pudo quitar la foto", "error");
+        } finally {
+            setProcesandoImagen(false);
+        }
+    };
+
+    const marcarComoPrincipal = async (imagenId?: string) => {
+        if (!editing?.id || !imagenId) return;
+        try {
+            setProcesandoImagen(true);
+            await ProductosService.setMainImage(editing.id, imagenId);
+            await recargarImagenes();
+        } catch (error) {
+            console.error("Error marcando la foto como principal", error);
+            Swal.fire("Error", "No se pudo marcar la foto como principal", "error");
+        } finally {
+            setProcesandoImagen(false);
         }
     };
 
@@ -338,7 +413,7 @@ export default function ProductosPage() {
 
         return (
             <img
-                src={principal.urlImagen}
+                src={resolveAssetUrl(principal.urlImagen)}
                 alt="producto"
                 style={{
                     width: "50px",
@@ -369,6 +444,127 @@ export default function ProductosPage() {
             >
                 {activo ? "Activo" : "Anulado"}
             </span>
+        );
+    };
+
+    /**
+     * Un slot fijo (Principal / Secundaria 1 / Secundaria 2). Si ya hay una
+     * foto guardada ahí, la muestra con acciones de quitar (y "Hacer
+     * principal" para las secundarias); si está vacío, muestra el input
+     * para elegir el archivo que se subirá al guardar.
+     */
+    const renderSlotFoto = (
+        titulo: string,
+        imagenExistente: ProductoImagen | undefined,
+        archivoNuevo: File | null,
+        setArchivoNuevo: (file: File | null) => void,
+        opciones?: { permitirHacerPrincipal?: boolean }
+    ) => {
+        const previewNuevo = archivoNuevo ? URL.createObjectURL(archivoNuevo) : null;
+
+        return (
+            <div
+                style={{
+                    width: 130,
+                    border: "1px solid #e5e7eb",
+                    borderRadius: 10,
+                    padding: 10,
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 6
+                }}
+            >
+                <span style={{ fontSize: 12, fontWeight: 600, color: "#475569" }}>{titulo}</span>
+
+                {imagenExistente ? (
+                    <>
+                        <img
+                            src={resolveAssetUrl(imagenExistente.urlImagen)}
+                            alt={titulo}
+                            style={{
+                                width: 96,
+                                height: 96,
+                                objectFit: "cover",
+                                borderRadius: 8,
+                                border: imagenExistente.esPrincipal ? "2px solid #16a34a" : "1px solid #ccc"
+                            }}
+                        />
+                        {!viewMode && (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 4, width: "100%" }}>
+                                {opciones?.permitirHacerPrincipal && (
+                                    <Button
+                                        label="Hacer principal"
+                                        text
+                                        size="small"
+                                        disabled={procesandoImagen}
+                                        onClick={() => marcarComoPrincipal(imagenExistente.id)}
+                                    />
+                                )}
+                                <Button
+                                    label="Quitar"
+                                    text
+                                    size="small"
+                                    severity="danger"
+                                    disabled={procesandoImagen}
+                                    onClick={() => quitarImagenExistente(imagenExistente.id)}
+                                />
+                            </div>
+                        )}
+                    </>
+                ) : archivoNuevo ? (
+                    <>
+                        <img
+                            src={previewNuevo ?? undefined}
+                            alt={titulo}
+                            style={{ width: 96, height: 96, objectFit: "cover", borderRadius: 8, border: "1px dashed #94a3b8" }}
+                        />
+                        {!viewMode && (
+                            <Button
+                                label="Quitar"
+                                text
+                                size="small"
+                                severity="danger"
+                                onClick={() => setArchivoNuevo(null)}
+                            />
+                        )}
+                    </>
+                ) : (
+                    <div
+                        style={{
+                            width: 96,
+                            height: 96,
+                            borderRadius: 8,
+                            border: "1px dashed #cbd5e1",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            color: "#94a3b8"
+                        }}
+                    >
+                        <i className="pi pi-image" style={{ fontSize: 22 }} />
+                    </div>
+                )}
+
+                {!viewMode && !imagenExistente && !archivoNuevo && (
+                    <label
+                        style={{
+                            fontSize: 12,
+                            color: "#2563eb",
+                            cursor: "pointer",
+                            fontWeight: 600
+                        }}
+                    >
+                        Elegir foto
+                        <input
+                            type="file"
+                            accept="image/*"
+                            style={{ display: "none" }}
+                            onChange={(e) => setArchivoNuevo(e.target.files?.[0] ?? null)}
+                        />
+                    </label>
+                )}
+            </div>
         );
     };
 
@@ -414,7 +610,7 @@ export default function ProductosPage() {
                                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
                                     <div style={{ display: "flex", gap: 10, flex: 1 }}>
                                         {principal?.urlImagen ? (
-                                            <img src={principal.urlImagen} alt="producto" style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 6, flexShrink: 0 }} />
+                                            <img src={resolveAssetUrl(principal.urlImagen)} alt="producto" style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 6, flexShrink: 0 }} />
                                         ) : (
                                             <div style={{ width: 48, height: 48, borderRadius: 6, background: "#f3f4f6", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                                                 <i className="pi pi-image" style={{ color: "#9ca3af", fontSize: 20 }} />
@@ -766,42 +962,30 @@ export default function ProductosPage() {
                     </div>
 
                     <div className="col-12">
-                        <label>Imágenes</label>
-
-                        {!viewMode && (
-                            <input
-                                type="file"
-                                multiple
-                                accept="image/*"
-                                onChange={(e) =>
-                                    setImagenesFiles(Array.from(e.target.files ?? []))
-                                }
-                            />
-                        )}
-                    </div>
-
-                    {form.imagenes?.length > 0 && (
-                        <div className="col-12">
-                            <div className="flex gap-2 flex-wrap">
-                                {form.imagenes.map((img, index) => (
-                                    <img
-                                        key={img.id || index}
-                                        src={img.urlImagen}
-                                        alt="producto"
-                                        style={{
-                                            width: "90px",
-                                            height: "90px",
-                                            objectFit: "cover",
-                                            borderRadius: "8px",
-                                            border: img.esPrincipal
-                                                ? "2px solid green"
-                                                : "1px solid #ccc"
-                                        }}
-                                    />
-                                ))}
-                            </div>
+                        <label>Fotos (1 principal + hasta 2 secundarias)</label>
+                        <div className="flex gap-3 flex-wrap mt-2">
+                            {renderSlotFoto(
+                                "Principal",
+                                form.imagenes?.find((img) => img.esPrincipal),
+                                archivoPrincipal,
+                                setArchivoPrincipal
+                            )}
+                            {renderSlotFoto(
+                                "Secundaria 1",
+                                form.imagenes?.filter((img) => !img.esPrincipal)[0],
+                                archivoSecundaria1,
+                                setArchivoSecundaria1,
+                                { permitirHacerPrincipal: true }
+                            )}
+                            {renderSlotFoto(
+                                "Secundaria 2",
+                                form.imagenes?.filter((img) => !img.esPrincipal)[1],
+                                archivoSecundaria2,
+                                setArchivoSecundaria2,
+                                { permitirHacerPrincipal: true }
+                            )}
                         </div>
-                    )}
+                    </div>
                 </div>
 
                 {!viewMode && (

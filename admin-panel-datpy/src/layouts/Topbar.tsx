@@ -8,6 +8,7 @@ import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { resolveAssetUrl } from "../services/api";
 import { StockService, type StockItem } from "../services/StockService";
+import logoYaFactura from "../imagenes/logo.png";
 
 interface Props {
   toggleSidebar: () => void;
@@ -82,12 +83,22 @@ export default function Topbar({ toggleSidebar }: Props) {
           onClick={toggleSidebar}
         />
 
-        <span style={{ fontWeight: 600 }}>
-          Sistema Administrativo - Ya Factura
-          {user?.empresaNombre && (
-            <span style={{ fontWeight: 400, opacity: 0.75 }}> · {user.empresaNombre}</span>
-          )}
-        </span>
+        <img
+          src={logoYaFactura}
+          alt="YaFactura"
+          style={{
+            width: 170,
+            height: "auto",
+            objectFit: "contain",
+            display: "block"
+          }}
+        />
+
+        {user?.empresaNombre && (
+          <span style={{ fontWeight: 400, opacity: 0.75, fontSize: 12 }}>
+            · {user.empresaNombre}
+          </span>
+        )}
 
       </div>
 

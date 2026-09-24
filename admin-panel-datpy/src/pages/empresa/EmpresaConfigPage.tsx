@@ -5,6 +5,7 @@ import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
 import { InputNumber } from "primereact/inputnumber";
 import { Dropdown } from "primereact/dropdown";
+import { Checkbox } from "primereact/checkbox";
 import { DataTable } from "primereact/datatable";
 import { Column } from "primereact/column";
 
@@ -58,6 +59,7 @@ export default function EmpresaConfigPage() {
   const [firmadorTenantId, setFirmadorTenantId] = useState("");
   const [ambienteSifen, setAmbienteSifen] = useState<string | null>("TEST");
   const [firmadorCertificadoId, setFirmadorCertificadoId] = useState("");
+  const [envioAutomaticoSifen, setEnvioAutomaticoSifen] = useState(false);
 
   const [actividades, setActividades] = useState<ActividadEconomica[]>([]);
   const [nuevoCodigo, setNuevoCodigo] = useState("");
@@ -90,6 +92,7 @@ export default function EmpresaConfigPage() {
         setFirmadorTenantId(data.firmadorTenantId ?? "");
         setAmbienteSifen(data.ambienteSifen ?? "TEST");
         setFirmadorCertificadoId(data.firmadorCertificadoId ?? "");
+        setEnvioAutomaticoSifen(data.envioAutomaticoSifen ?? false);
 
         const ciudad = data.ciudad ?? null;
         const distrito = ciudad?.distrito ?? null;
@@ -170,7 +173,8 @@ export default function EmpresaConfigPage() {
         ciudad: ciudadId ? { id: ciudadId } : null,
         firmadorTenantId: firmadorTenantId.trim() || null,
         ambienteSifen,
-        firmadorCertificadoId: firmadorCertificadoId.trim() || null
+        firmadorCertificadoId: firmadorCertificadoId.trim() || null,
+        envioAutomaticoSifen
       });
 
       Swal.fire("Listo", "Datos de la empresa actualizados correctamente", "success");
@@ -464,6 +468,17 @@ export default function EmpresaConfigPage() {
                 value={firmadorCertificadoId}
                 onChange={(e) => setFirmadorCertificadoId(e.target.value)}
               />
+            </div>
+
+            <div className="col-12 flex align-items-center gap-2" style={{ marginTop: "8px" }}>
+              <Checkbox
+                inputId="envioAutomaticoSifen"
+                checked={envioAutomaticoSifen}
+                onChange={(e) => setEnvioAutomaticoSifen(e.checked ?? false)}
+              />
+              <label htmlFor="envioAutomaticoSifen" style={{ margin: 0, cursor: "pointer" }}>
+                Enviar Comprobantes a SIFEN automáticamente al emitirla (sin usar el botón manual)
+              </label>
             </div>
           </div>
         </div>

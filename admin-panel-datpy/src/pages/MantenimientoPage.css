@@ -1,0 +1,204 @@
+.maintenance-page {
+  height: 100vh;
+  overflow: hidden;
+  background: #edf4fb;
+  display: flex;
+  flex-direction: column;
+  color: #0f2747;
+}
+
+.maintenance-header {
+  width: 100%;
+  padding: 18px 26px 14px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 8px;
+}
+
+.brand-logo {
+  display: block;
+  width: 200px;
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
+.maintenance-main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px 28px 10px;
+  min-height: 0;
+}
+
+.maintenance-card {
+  width: min(100%, 980px);
+  min-height: 440px;
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  background: rgba(255, 255, 255, 0.68);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 28px;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.08);
+  padding: clamp(26px, 3vw, 42px) clamp(26px, 5vw, 56px);
+  gap: clamp(12px, 2vw, 36px);
+}
+
+.maintenance-copy {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.section-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.82rem;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  color: #0d5ea6;
+  font-weight: 800;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+
+.tag-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #2f7ef7;
+  box-shadow: 0 0 0 5px rgba(47, 126, 247, 0.12);
+}
+
+.maintenance-copy h1 {
+  margin: 0;
+  font-size: clamp(2.2rem, 3.6vw, 4rem);
+  line-height: 0.98;
+  letter-spacing: -0.07em;
+  color: #0f2747;
+  font-weight: 900;
+}
+
+.maintenance-copy p {
+  margin: 24px 0 28px;
+  max-width: 456px;
+  color: #4d607b;
+  font-size: 1.02rem;
+  line-height: 1.7;
+}
+
+.maintenance-copy button {
+  appearance: none;
+  border: none;
+  border-radius: 12px;
+  padding: 14px 22px;
+  min-width: 162px;
+  background: linear-gradient(135deg, #1f6de8 0%, #3c80f8 100%);
+  color: #fff;
+  font-size: 1.05rem;
+  font-weight: 700;
+  box-shadow: 0 16px 28px rgba(46, 108, 232, 0.26);
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.maintenance-copy button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 20px 28px rgba(46, 108, 232, 0.3);
+}
+
+.maintenance-copy button span {
+  margin-left: 8px;
+  font-size: 1.3rem;
+  vertical-align: middle;
+}
+
+.maintenance-visual {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 270px;
+}
+
+.visual-shape {
+  position: absolute;
+  border-radius: 22px;
+  background: rgba(188, 216, 255, 0.38);
+}
+
+.shape-one {
+  width: 132px;
+  height: 132px;
+  right: 30px;
+  top: 18px;
+}
+
+.shape-two {
+  width: 90px;
+  height: 90px;
+  left: 24px;
+  bottom: 24px;
+  background: rgba(206, 229, 255, 0.52);
+}
+
+.shape-three {
+  width: 84px;
+  height: 84px;
+  right: 10px;
+  bottom: 34px;
+  background: rgba(145, 199, 255, 0.3);
+}
+
+.maintenance-illustration {
+  width: min(100%, 420px);
+  height: auto;
+  position: relative;
+  z-index: 1;
+}
+
+.maintenance-footer {
+  text-align: center;
+  color: #5b718a;
+  font-size: 0.76rem;
+  padding: 8px 0 14px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 820px) {
+  .maintenance-header {
+    padding-left: 18px;
+  }
+
+  .brand-text {
+    font-size: 1.5rem;
+  }
+
+  .maintenance-card {
+    grid-template-columns: 1fr;
+    padding: 24px 22px 26px;
+    min-height: auto;
+  }
+
+  .maintenance-copy {
+    align-items: center;
+    text-align: center;
+  }
+
+  .maintenance-copy p {
+    max-width: 100%;
+  }
+
+  .maintenance-visual {
+    padding-top: 10px;
+  }
+}

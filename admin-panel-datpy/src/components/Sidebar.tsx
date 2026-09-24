@@ -94,6 +94,14 @@ export default function Sidebar({ collapsed, mobileOpen, setMobileOpen }: Props)
       />
 
       <MenuItem
+        icon="pi pi-file"
+        label="Documentos Electrónicos"
+        collapsed={isCollapsed}
+        active={isActive("/documentos-electronicos")}
+        onClick={() => go("/documentos-electronicos")}
+      />
+
+      <MenuItem
         icon="pi pi-cog"
         label="Configuraciones"
         collapsed={isCollapsed}
@@ -106,6 +114,7 @@ export default function Sidebar({ collapsed, mobileOpen, setMobileOpen }: Props)
           isActive("/distritos") ||
           isActive("/ciudades") ||
           isActive("/empresa") ||
+          isActive("/cotizaciones") ||
           isActive("/firmador-tenants")
         }
         onClick={() => toggleMenu("config")}
@@ -136,6 +145,12 @@ export default function Sidebar({ collapsed, mobileOpen, setMobileOpen }: Props)
             label="Datos de la empresa"
             active={isActive("/empresa")}
             onClick={() => go("/empresa")}
+          />
+          <SubItem
+            icon="pi pi-dollar"
+            label="Cotizaciones"
+            active={isActive("/cotizaciones")}
+            onClick={() => go("/cotizaciones")}
           />
           <SubItem
             icon="pi pi-shield"
@@ -183,6 +198,15 @@ export default function Sidebar({ collapsed, mobileOpen, setMobileOpen }: Props)
         open={openMenu === "facturacion"}
         active={
           isActive("/facturacion") ||
+          isActive("/facturacion-create") ||
+          isActive("/notas-credito") ||
+          isActive("/nota-credito-create") ||
+          isActive("/notas-debito") ||
+          isActive("/nota-debito-create") ||
+          isActive("/autofacturas") ||
+          isActive("/autofactura-create") ||
+          isActive("/notas-remision") ||
+          isActive("/nota-remision-create") ||
           isActive("/apertura-caja") ||
           isActive("/cierre-caja") ||
           isActive("/canales-venta") ||
@@ -196,7 +220,11 @@ export default function Sidebar({ collapsed, mobileOpen, setMobileOpen }: Props)
 
       {openMenu === "facturacion" && !isCollapsed && (
         <>
-          <SubItem icon="pi pi-receipt" label="Facturación" active={isActive("/facturacion")} onClick={() => go("/facturacion")} />
+          <SubItem icon="pi pi-receipt" label="Facturación" active={isActive("/facturacion") || isActive("/facturacion-create")} onClick={() => go("/facturacion")} />
+          <SubItem icon="pi pi-replay" label="Notas de Crédito" active={isActive("/notas-credito") || isActive("/nota-credito-create")} onClick={() => go("/notas-credito")} />
+          <SubItem icon="pi pi-plus-circle" label="Notas de Débito" active={isActive("/notas-debito") || isActive("/nota-debito-create")} onClick={() => go("/notas-debito")} />
+          <SubItem icon="pi pi-shopping-bag" label="Autofacturas" active={isActive("/autofacturas") || isActive("/autofactura-create")} onClick={() => go("/autofacturas")} />
+          <SubItem icon="pi pi-truck" label="Notas de Remisión" active={isActive("/notas-remision") || isActive("/nota-remision-create")} onClick={() => go("/notas-remision")} />
           <SubItem icon="pi pi-play-circle" label="Apertura Caja" active={isActive("/apertura-caja")} onClick={() => go("/apertura-caja")} />
           <SubItem icon="pi pi-stop-circle" label="Cierre Caja" active={isActive("/cierre-caja")} onClick={() => go("/cierre-caja")} />
           <SubItem icon="pi pi-send" label="Canales de Venta" active={isActive("/canales-venta")} onClick={() => go("/canales-venta")} />

@@ -46,6 +46,8 @@ interface AmbienteForm {
   urlConsultaLote: string;
   urlConsultaDe: string;
   urlEventos: string;
+  csc: string;
+  idCsc: string;
 }
 
 const ambienteFormVacio: AmbienteForm = {
@@ -54,7 +56,9 @@ const ambienteFormVacio: AmbienteForm = {
   urlRecepcion: "",
   urlConsultaLote: "",
   urlConsultaDe: "",
-  urlEventos: ""
+  urlEventos: "",
+  csc: "",
+  idCsc: ""
 };
 
 interface CertificadoForm {
@@ -212,7 +216,9 @@ export default function TenantsFirmadorPage() {
         urlRecepcion: ambienteForm.urlRecepcion.trim() || undefined,
         urlConsultaLote: ambienteForm.urlConsultaLote.trim() || undefined,
         urlConsultaDe: ambienteForm.urlConsultaDe.trim() || undefined,
-        urlEventos: ambienteForm.urlEventos.trim() || undefined
+        urlEventos: ambienteForm.urlEventos.trim() || undefined,
+        csc: ambienteForm.csc.trim() || undefined,
+        idCsc: ambienteForm.idCsc.trim() || undefined
       });
 
       Swal.fire("Listo", "Ambiente creado correctamente", "success");
@@ -301,6 +307,13 @@ export default function TenantsFirmadorPage() {
   const estadoAmbienteTemplate = (rowData: FirmadorAmbiente) => (
     <Tag value={rowData.habilitado ? "Habilitado" : "Deshabilitado"} severity={rowData.habilitado ? "success" : "secondary"} />
   );
+
+  const cscAmbienteTemplate = (rowData: FirmadorAmbiente) =>
+    rowData.cscConfigurado ? (
+      <Tag value={rowData.idCsc ? `Cargado · ${rowData.idCsc}` : "Cargado"} severity="success" icon="pi pi-check" />
+    ) : (
+      <Tag value="Sin CSC" severity="warning" icon="pi pi-exclamation-triangle" />
+    );
 
   const idCertificadoTemplate = (rowData: FirmadorCertificado) => idCopiable(rowData.id);
 
@@ -405,6 +418,7 @@ export default function TenantsFirmadorPage() {
               <Column field="ambiente" header="Ambiente" />
               <Column header="Estado" body={estadoAmbienteTemplate} />
               <Column field="urlRecepcion" header="URL Recepción" body={(row: FirmadorAmbiente) => row.urlRecepcion ?? "-"} />
+              <Column header="CSC (QR)" body={cscAmbienteTemplate} style={{ width: "150px" }} />
             </DataTable>
 
             <div className="grid">
@@ -440,6 +454,35 @@ export default function TenantsFirmadorPage() {
               <div className="col-6">
                 <label>URL Eventos</label>
                 <InputText className="w-full" value={ambienteForm.urlEventos} onChange={(e) => setAmbienteForm({ ...ambienteForm, urlEventos: e.target.value })} />
+              </div>
+
+              <div className="col-12">
+                <small className="text-color-secondary">
+                  El <b>CSC</b> (Código de Seguridad del Contribuyente) y su <b>ID</b> los entrega la SET por ambiente. Sin ellos no se puede generar el código QR del DE.
+                </small>
+              </div>
+              <div className="col-8">
+                <label>CSC</label>
+                <Password
+                  className="w-full"
+                  inputClassName="w-full"
+                  value={ambienteForm.csc}
+                  onChange={(e) => setAmbienteForm({ ...ambienteForm, csc: e.target.value })}
+                  feedback={false}
+                  toggleMask
+                  placeholder="Secreto entregado por la SET"
+                />
+              </div>
+              <div className="col-4">
+                <label>ID del CSC</label>
+                <InputText
+                  className="w-full"
+                  maxLength={4}
+                  keyfilter="pint"
+                  placeholder="0001"
+                  value={ambienteForm.idCsc}
+                  onChange={(e) => setAmbienteForm({ ...ambienteForm, idCsc: e.target.value })}
+                />
               </div>
             </div>
 

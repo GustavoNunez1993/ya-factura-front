@@ -31,6 +31,10 @@ export interface FirmadorAmbiente {
   urlConsultaLote: string | null;
   urlConsultaDe: string | null;
   urlEventos: string | null;
+  /** Identificador del CSC entregado por la SET (4 dígitos). El CSC en sí nunca se devuelve. */
+  idCsc: string | null;
+  /** true si el ambiente ya tiene un CSC cargado. */
+  cscConfigurado: boolean;
 }
 
 export interface FirmadorAmbientePayload {
@@ -40,6 +44,10 @@ export interface FirmadorAmbientePayload {
   urlConsultaLote?: string;
   urlConsultaDe?: string;
   urlEventos?: string;
+  /** Código de Seguridad del Contribuyente (secreto de la SET) para el hash del QR. En update, si va vacío no se toca. */
+  csc?: string;
+  /** Identificador del CSC (4 dígitos). */
+  idCsc?: string;
 }
 
 export interface FirmadorCertificado {

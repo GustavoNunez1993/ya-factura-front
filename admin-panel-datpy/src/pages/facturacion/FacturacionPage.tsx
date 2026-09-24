@@ -18,6 +18,7 @@ import { CanalVentaService, type CanalVenta } from "../../services/CanalVentaSer
 import { VendedorService, type Vendedor } from "../../services/VendedorService";
 import { CajaAperturaCierreService } from "../../services/CajaAperturaCierreService";
 import { CondicionVentaService, type CondicionVenta } from "../../services/CondicionVentaService";
+import { CotizacionService } from "../../services/CotizacionService";
 import { descargarBoletaVentaPdf } from "../../comprobantes/invoices";
 
 interface Persona {
@@ -79,13 +80,6 @@ const puntosExpedicion = [
   { label: "002-001", value: "002-001" }
 ];
 
-const cotizaciones: Record<string, number> = {
-  PYG: 1,
-  USD: 6500,
-  BRL: 2800,
-  EUR: 6800
-};
-
 const formasPago = [
   { label: "Efectivo", value: "EFECTIVO" },
   { label: "Tarjeta", value: "TARJETA" },
@@ -102,12 +96,6 @@ const formatMoney = (value: number, currency = "PYG") =>
     currency,
     maximumFractionDigits: currency === "PYG" ? 0 : 2
   }).format(value || 0);
-
-const convertirDesdeGuaranies = (value: number, currency = "PYG") =>
-  value / (cotizaciones[currency] ?? 1);
-
-const convertirAGuaranies = (value: number, currency = "PYG") =>
-  value * (cotizaciones[currency] ?? 1);
 
 const monedaPrefix = (currency = "PYG") => {
   if (currency === "PYG") return "Gs. ";
@@ -157,6 +145,12 @@ export default function FacturacionPage() {
   const [vendedorSeleccionadoId, setVendedorSeleccionadoId] = useState<string | null>(null);
   const [condicionVentaId, setCondicionVentaId] = useState<string | null>(null);
   const [moneda, setMoneda] = useState("PYG");
+  // Tipo de cambio real, cargado desde /api/cotizaciones (pantalla
+  // "Cotizaciones" en Configuraciones) — no hay ningún valor hardcodeado
+  // acá. Sólo incluye las monedas con un valor cargado; PYG siempre está
+  // en 1. Una moneda sin cotización cargada simplemente no aparece en el
+  // selector de "Moneda" más abajo.
+  const [cotizaciones, setCotizaciones] = useState<Record<string, number>>({ PYG: 1 });
   const [puntoExpedicion, setPuntoExpedicion] = useState("");
   const [descuento, setDescuento] = useState<number>(0);
   const [anticipo, setAnticipo] = useState<number>(0);
@@ -178,6 +172,16 @@ export default function FacturacionPage() {
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
+
+  const convertirDesdeGuaranies = (value: number, currency = "PYG") =>
+    value / (cotizaciones[currency] ?? 1);
+
+  const convertirAGuaranies = (value: number, currency = "PYG") =>
+    value * (cotizaciones[currency] ?? 1);
+
+  // Sólo se ofrecen las monedas con cotización cargada — evita facturar en
+  // una moneda cuyo tipo de cambio nadie cargó todavía en "Cotizaciones".
+  const monedasDisponibles = monedas.filter((m) => cotizaciones[m.value] != null);
 
   const totalAbonar = useMemo(
     () => items.reduce((total, item) => total + item.exenta + item.iva5 + item.iva10, 0),
@@ -223,19 +227,28 @@ export default function FacturacionPage() {
 
   const cargarDatos = async () => {
     try {
-      const [clientesRes, productosRes, canalesRes, vendedoresRes, condicionesRes] = await Promise.all([
-        PersonaService.getPaginated(0, 1000, ""),
-        ProductosService.getPaginated(0, 1000, ""),
-        CanalVentaService.getAll(),
-        VendedorService.getAll(),
-        CondicionVentaService.getActivas()
-      ]);
+      const [clientesRes, productosRes, canalesRes, vendedoresRes, condicionesRes, cotizacionesRes] =
+        await Promise.all([
+          PersonaService.getPaginated(0, 1000, ""),
+          ProductosService.getPaginated(0, 1000, ""),
+          CanalVentaService.getAll(),
+          VendedorService.getAll(),
+          CondicionVentaService.getActivas(),
+          CotizacionService.getAll()
+        ]);
 
       setClientes(clientesRes?.content ?? []);
       setProductos(productosRes?.content ?? []);
       setCanalesVenta(canalesRes ?? []);
       setVendedores(vendedoresRes ?? []);
       setCondiciones(condicionesRes ?? []);
+      setCotizaciones(
+        Object.fromEntries(
+          (cotizacionesRes ?? [])
+            .filter((c) => c.valor != null)
+            .map((c) => [c.codigoMoneda, c.valor as number])
+        )
+      );
 
       const predeterminada = (condicionesRes ?? []).find((c) => c.predeterminada) ?? (condicionesRes ?? [])[0];
       if (predeterminada) {
@@ -248,6 +261,7 @@ export default function FacturacionPage() {
       setCanalesVenta([]);
       setVendedores([]);
       setCondiciones([]);
+      setCotizaciones({ PYG: 1 });
     }
   };
 
@@ -1181,9 +1195,15 @@ const facturarACredito = async () => {
           <Dropdown
             className="w-full"
             value={moneda}
-            options={monedas}
+            options={monedasDisponibles}
+            emptyMessage="Sin cotizaciones cargadas"
             onChange={(e) => cambiarMoneda(e.value)}
           />
+          {monedasDisponibles.length < monedas.length && (
+            <small className="text-500">
+              Faltan cotizaciones por cargar en Configuraciones &gt; Cotizaciones.
+            </small>
+          )}
         </div>
 
         <div className="col-6 sm:col-6 md:col-2">

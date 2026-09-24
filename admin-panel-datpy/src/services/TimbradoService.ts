@@ -19,6 +19,17 @@ export interface TimbradoPayload {
   numeroTimbrado: string;
 }
 
+export interface InutilizarPayload {
+  numeroHasta: number;
+  motivo: string;
+}
+
+export interface EventoInutilizacionResultado {
+  estado: string | null;
+  codigoRespuesta: string | null;
+  mensajeRespuesta: string | null;
+}
+
 export const TimbradoService = {
   async listar(empresaId: string): Promise<Timbrado[]> {
     const res = await api.get("/timbrados", { params: { empresaId } });
@@ -32,6 +43,11 @@ export const TimbradoService = {
 
   async desactivar(id: string) {
     const res = await api.patch(`/timbrados/${id}/desactivar`);
+    return res.data;
+  },
+
+  async inutilizar(id: string, payload: InutilizarPayload): Promise<EventoInutilizacionResultado> {
+    const res = await api.post(`/timbrados/${id}/inutilizar`, payload);
     return res.data;
   }
 };

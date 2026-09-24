@@ -11,11 +11,15 @@ import { Skeleton } from "primereact/skeleton";
 import Swal from "sweetalert2";
 import { DashboardService, type DashboardResumen, type FacturaResumen } from "../../services/DashboardService";
 import { CajaAperturaCierreService } from "../../services/CajaAperturaCierreService";
+import { estiloTipoDocumento, nombreTipoDocumento } from "../../services/FacturaService";
 import "./dashboard.css";
 
 const resumenVacio: DashboardResumen = {
   ventasPeriodo: 0,
   facturasEmitidasPeriodo: 0,
+  documentosEmitidosPeriodo: 0,
+  documentosPorTipo: [],
+  comprasPeriodo: 0,
   productosActivos: 0,
   productosInactivos: 0,
   clientesActivos: 0,
@@ -36,6 +40,13 @@ const startOfDay = (date: Date) => {
   return value;
 };
 
+const formatFechaParam = (date: Date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+
+const inicioDeMes = (date: Date) => new Date(date.getFullYear(), date.getMonth(), 1);
+const finDeMes = (date: Date) => new Date(date.getFullYear(), date.getMonth() + 1, 0);
+
+
 const mismoDia = (a: Date, b: Date) =>
   a.getFullYear() === b.getFullYear() &&
   a.getMonth() === b.getMonth() &&
@@ -48,10 +59,13 @@ export default function Dashboard() {
 
   const [resumen, setResumen] = useState<DashboardResumen>(resumenVacio);
   const [loading, setLoading] = useState(true);
-  const [fechaDesde, setFechaDesde] = useState<Date>(hoy);
-  const [fechaHasta, setFechaHasta] = useState<Date>(hoy);
+  // Rango por defecto: el mes actual completo (del 1 al último día).
+  const [fechaDesde, setFechaDesde] = useState<Date>(() => inicioDeMes(hoy));
+  const [fechaHasta, setFechaHasta] = useState<Date>(() => finDeMes(hoy));
 
   const esHoy = mismoDia(fechaDesde, hoy) && mismoDia(fechaHasta, hoy);
+  const esMesActual = mismoDia(fechaDesde, inicioDeMes(hoy)) && mismoDia(fechaHasta, finDeMes(hoy));
+  const textoPeriodo = esHoy ? "hoy" : esMesActual ? "en el mes actual" : "en el período seleccionado";
 
   useEffect(() => {
     let activo = true;
@@ -90,6 +104,11 @@ export default function Dashboard() {
   const irAHoy = () => {
     setFechaDesde(hoy);
     setFechaHasta(hoy);
+  };
+
+  const irAMesActual = () => {
+    setFechaDesde(inicioDeMes(hoy));
+    setFechaHasta(finDeMes(hoy));
   };
 
   const [loadingNuevaFactura, setLoadingNuevaFactura] = useState(false);
@@ -274,6 +293,28 @@ export default function Dashboard() {
     boxShadow: "0 6px 24px rgba(15, 23, 42, 0.05)"
   };
 
+  /**
+   * Listado de cada tipo de documento con el mismo período del dashboard. NC y ND no tienen
+   * listado propio: van a Documentos Electrónicos filtrado por su tipo.
+   */
+  const rutaListadoTipo = (tipo: number) => {
+    const periodo = `desde=${formatFechaParam(fechaDesde)}&hasta=${formatFechaParam(fechaHasta)}`;
+    switch (tipo) {
+      case 1:
+        return `/facturacion?${periodo}`;
+      case 4:
+        return `/autofacturas?${periodo}`;
+      case 5:
+        return `/notas-credito?${periodo}`;
+      case 6:
+        return `/notas-debito?${periodo}`;
+      case 7:
+        return `/notas-remision?${periodo}`;
+      default:
+        return `/documentos-electronicos?tipo=${tipo}&${periodo}`;
+    }
+  };
+
   const kpiProps = (path: string) => ({
     role: "button" as const,
     tabIndex: 0,
@@ -321,7 +362,6 @@ export default function Dashboard() {
               value={fechaHasta}
               dateFormat="dd/mm/yy"
               minDate={fechaDesde}
-              maxDate={hoy}
               inputClassName="dashboard-daterange-input"
               onChange={(e) => e.value && setFechaHasta(startOfDay(e.value as Date))}
             />
@@ -333,6 +373,14 @@ export default function Dashboard() {
               size="small"
               text
               onClick={irAHoy}
+            />
+          )}
+          {!esMesActual && (
+            <Button
+              label="Este mes"
+              size="small"
+              text
+              onClick={irAMesActual}
             />
           )}
         </div>
@@ -407,7 +455,7 @@ export default function Dashboard() {
           >
             <div className="flex justify-content-between align-items-start mb-3">
               <div>
-                <div className="text-sm opacity-80 mb-2">{esHoy ? "Ventas Hoy" : "Ventas del Período"}</div>
+                <div className="text-sm opacity-80 mb-2">{esHoy ? "Ventas Hoy" : esMesActual ? "Ventas del Mes" : "Ventas del Período"}</div>
                 {loading ? (
                   <Skeleton width="7rem" height="2rem" className="dashboard-skeleton" />
                 ) : (
@@ -430,7 +478,7 @@ export default function Dashboard() {
             </div>
 
             <div className="text-sm opacity-80">
-              {esHoy ? "Total vendido en la fecha actual" : "Total vendido en el período seleccionado"}
+              Facturas + notas de débito − notas de crédito {textoPeriodo}
             </div>
           </div>
         </div>
@@ -467,7 +515,7 @@ export default function Dashboard() {
             </div>
 
             <div className="text-sm opacity-80">
-              {esHoy ? "Documentos generados hoy" : "Documentos generados en el período"}
+              {`Facturas ${textoPeriodo} · ${resumen.documentosEmitidosPeriodo} documentos electrónicos en total`}
             </div>
           </div>
         </div>
@@ -544,12 +592,70 @@ export default function Dashboard() {
 
         <div className="col-12">
           <Card className="border-round-2xl" style={cardBaseStyle}>
+            <div className="flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+              <div>
+                <div className="text-900" style={{ fontSize: "1.4rem", fontWeight: 700 }}>
+                  Documentos Electrónicos
+                </div>
+                <div className="text-600">{`Comprobantes emitidos ${textoPeriodo}, por tipo`}</div>
+              </div>
+              <div className="flex align-items-center gap-3 flex-wrap">
+                {!loading && (
+                  <span className="text-600">
+                    Total: <strong className="text-900">{resumen.documentosEmitidosPeriodo}</strong> documentos
+                  </span>
+                )}
+                <Button label="Ver todos" icon="pi pi-arrow-right" iconPos="right" size="small" text onClick={() => navigate(`/documentos-electronicos?desde=${formatFechaParam(fechaDesde)}&hasta=${formatFechaParam(fechaHasta)}`)} />
+              </div>
+            </div>
+
+            <div className="grid">
+              {(loading ? [1, 4, 5, 6, 7].map((tipo) => ({ tipo, emitidos: 0, anulados: 0, total: 0 })) : resumen.documentosPorTipo).map((d) => {
+                const estilo = estiloTipoDocumento(d.tipo);
+                return (
+                  <div key={d.tipo} className="col-12 sm:col-6 lg:col">
+                    <div
+                      className="p-3 border-round-xl h-full dashboard-doc-tile"
+                      style={{ border: `1px solid ${estilo.color}33`, background: `${estilo.color}0d` }}
+                      title={`Ver ${nombreTipoDocumento(d.tipo).toLowerCase()}s del período`}
+                      {...kpiProps(rutaListadoTipo(d.tipo))}
+                    >
+                      <div className="flex align-items-center gap-2 mb-2">
+                        <i className={estilo.icon} style={{ color: estilo.color }} />
+                        <span className="font-semibold text-900">{nombreTipoDocumento(d.tipo)}</span>
+                      </div>
+                      {loading ? (
+                        <Skeleton width="3rem" height="1.8rem" className="dashboard-skeleton" />
+                      ) : (
+                        <>
+                          <div style={{ fontSize: "1.8rem", fontWeight: 700, color: estilo.color }}>{d.emitidos}</div>
+                          <div className="text-600 text-sm">
+                            {d.tipo === 7 ? "Sin importe" : `Gs. ${formatGs(d.total)}`}
+                            {d.tipo === 4 && " en compras"}
+                          </div>
+                          {d.anulados > 0 && (
+                            <div className="text-sm mt-1" style={{ color: "#dc2626" }}>
+                              {d.anulados} anulado{d.anulados === 1 ? "" : "s"}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        </div>
+
+        <div className="col-12">
+          <Card className="border-round-2xl" style={cardBaseStyle}>
             <div className="mb-4">
               <div className="text-900" style={{ fontSize: "1.4rem", fontWeight: 700 }}>
                 Cobros
               </div>
               <div className="text-600">
-                {esHoy ? "Pagos recibidos y saldo por cobrar hoy" : "Pagos recibidos y saldo por cobrar en el período seleccionado"}
+                {`Pagos recibidos y saldo por cobrar ${textoPeriodo}`}
               </div>
             </div>
 
@@ -686,7 +792,7 @@ export default function Dashboard() {
                 <div className="text-900" style={{ fontSize: "1.4rem", fontWeight: 700 }}>
                   Tendencia de Ventas
                 </div>
-                <div className="text-600">Comparativo mensual</div>
+                <div className="text-600">Ventas netas por mes (facturas + ND − NC)</div>
               </div>
 
               <div
@@ -736,7 +842,7 @@ export default function Dashboard() {
               <div className="text-900" style={{ fontSize: "1.4rem", fontWeight: 700 }}>
                 Facturación Semanal
               </div>
-              <div className="text-600">Cantidad de documentos por día</div>
+              <div className="text-600">Facturas emitidas por día (últimos 7 días)</div>
             </div>
 
             <div style={{ height: "300px" }}>
