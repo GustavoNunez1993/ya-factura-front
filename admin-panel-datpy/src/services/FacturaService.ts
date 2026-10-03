@@ -152,6 +152,17 @@ export interface ResumenComprobantes {
   facturasUltimos7Dias: { fecha: string; facturas: number }[];
 }
 
+export interface RespuestaSifenDetalle {
+  cdc: string | null;
+  estadoSifen: string | null;
+  /** Uno o varios códigos de SIFEN separados por coma, p. ej. "1305,2008". */
+  codigo: string | null;
+  /** Mensajes de SIFEN separados por " | ", en el mismo orden que los códigos. */
+  mensaje: string | null;
+  protocolo: string | null;
+  xmlRespuesta: string | null;
+}
+
 export const FacturaService = {
   async getResumen(fechaDesde: string, fechaHasta: string): Promise<ResumenComprobantes> {
     const empresaId = localStorage.getItem("empresaId");
@@ -205,6 +216,12 @@ export const FacturaService = {
 
   async estadoSifen(id: string) {
     const res = await api.get(`/facturas/${id}/estado-sifen`);
+    return res.data;
+  },
+
+  /** Última respuesta de SIFEN guardada (códigos, mensajes, protocolo y XML); no consulta a SIFEN. */
+  async respuestaSifen(id: string): Promise<RespuestaSifenDetalle> {
+    const res = await api.get(`/facturas/${id}/respuesta-sifen`);
     return res.data;
   },
 

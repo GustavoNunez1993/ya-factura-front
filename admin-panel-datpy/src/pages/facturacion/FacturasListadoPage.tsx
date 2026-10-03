@@ -23,6 +23,7 @@ import {
 import { KudeService } from "../../services/KudeService";
 import { verificarCajaAbierta } from "../../utils/caja";
 import { descargarBoletaVentaPdf } from "../../comprobantes/invoices";
+import SifenRespuestaDialog from "./SifenRespuestaDialog";
 
 interface FacturaListado {
   id: string;
@@ -39,6 +40,9 @@ interface FacturaListado {
   estadoSifen?: string;
   tipoDocumentoElectronico?: number;
   facturaAsociadaId?: string;
+  /** Última respuesta de SIFEN, p. ej. 0300 "Lote recibido con éxito". */
+  codigoRespuestaSifen?: string | null;
+  mensajeRespuestaSifen?: string | null;
 }
 
 const opcionesTiposDocumento = Object.entries(TIPOS_DOCUMENTO_ELECTRONICO).map(([value, label]) => ({
@@ -129,6 +133,7 @@ export default function FacturasListadoPage({
   const [loadingNuevaFactura, setLoadingNuevaFactura] = useState(false);
   const [loadingSifen, setLoadingSifen] = useState<string | null>(null);
   const [loadingXml, setLoadingXml] = useState<string | null>(null);
+  const [detalleSifen, setDetalleSifen] = useState<{ id: string; numeracion: string } | null>(null);
   const isMobile = useIsMobile();
 
   const obtenerFiltros = (): FacturaListadoFiltros => ({
@@ -330,13 +335,43 @@ const estadoBody = (rowData: FacturaListado) => {
     const severity =
       estadoUpper === "APROBADO" || estadoUpper === "APROBADO_CON_OBSERVACION"
         ? "success"
-        : estadoUpper === "RECHAZADO"
-        ? "danger"
-        : estadoUpper === "CANCELADO"
+        : ["RECHAZADO", "CANCELADO", "ERROR_DEFINITIVO", "FIRMA_RECHAZADA", "VALIDACION_RECHAZADA"].includes(estadoUpper)
         ? "danger"
         : "warning";
 
-    return <Tag value={estado} severity={severity as any} />;
+    const respuesta = [rowData.codigoRespuestaSifen, rowData.mensajeRespuestaSifen].filter(Boolean).join(" · ");
+    // Si no está aprobado, un click en el estado abre el detalle de lo que respondió SIFEN.
+    const conDetalle = !estadoUpper.startsWith("APROBADO");
+    const abrirDetalle = () =>
+      setDetalleSifen({ id: rowData.id, numeracion: `${rowData.dEst}-${rowData.dPunExp}-${rowData.dNumDoc}` });
+
+    return (
+      <div className="flex flex-column gap-1" style={{ maxWidth: "16rem" }}>
+        {conDetalle ? (
+          <Tag
+            value={estado}
+            icon="pi pi-info-circle"
+            severity={severity as any}
+            className="cursor-pointer"
+            title="Ver detalle de la respuesta de SIFEN"
+            role="button"
+            tabIndex={0}
+            onClick={abrirDetalle}
+            onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && abrirDetalle()}
+          />
+        ) : (
+          <Tag value={estado} severity={severity as any} />
+        )}
+        {respuesta && (
+          <small
+            className="text-600 white-space-nowrap overflow-hidden text-overflow-ellipsis"
+            title={`Respuesta de SIFEN: ${respuesta}`}
+          >
+            {respuesta}
+          </small>
+        )}
+      </div>
+    );
   };
 
   const cdcBody = (rowData: FacturaListado) => {
@@ -986,6 +1021,7 @@ const estadoBody = (rowData: FacturaListado) => {
         </DataTable>
       )}
 
+      <SifenRespuestaDialog factura={detalleSifen} onHide={() => setDetalleSifen(null)} />
     </div>
   );
 }
