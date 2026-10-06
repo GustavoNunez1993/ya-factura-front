@@ -27,6 +27,7 @@ export interface FirmadorAmbiente {
   tenantId: string;
   ambiente: "TEST" | "PRODUCCION";
   habilitado: boolean;
+  /** URLs fijas de la SET para el ambiente (informativas, no se configuran). */
   urlRecepcion: string | null;
   urlConsultaLote: string | null;
   urlConsultaDe: string | null;
@@ -40,10 +41,6 @@ export interface FirmadorAmbiente {
 export interface FirmadorAmbientePayload {
   ambiente: "TEST" | "PRODUCCION";
   habilitado: boolean;
-  urlRecepcion?: string;
-  urlConsultaLote?: string;
-  urlConsultaDe?: string;
-  urlEventos?: string;
   /** Código de Seguridad del Contribuyente (secreto de la SET) para el hash del QR. En update, si va vacío no se toca. */
   csc?: string;
   /** Identificador del CSC (4 dígitos). */
@@ -80,6 +77,15 @@ export const FirmadorTenantService = {
 
   async crearAmbiente(tenantId: string, payload: FirmadorAmbientePayload): Promise<FirmadorAmbiente> {
     const res = await api.post(`/firmador/tenants/${tenantId}/ambientes`, payload);
+    return res.data;
+  },
+
+  async actualizarAmbiente(
+    tenantId: string,
+    ambienteId: string,
+    payload: Omit<FirmadorAmbientePayload, "ambiente">
+  ): Promise<FirmadorAmbiente> {
+    const res = await api.put(`/firmador/tenants/${tenantId}/ambientes/${ambienteId}`, payload);
     return res.data;
   },
 

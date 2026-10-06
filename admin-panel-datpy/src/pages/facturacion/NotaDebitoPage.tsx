@@ -15,6 +15,7 @@ import { ProductosService } from "../../services/ProductosService";
 import { NRO_CAJA, verificarCajaAbierta } from "../../utils/caja";
 import type { FacturaAprobada } from "./SelectorFacturaAprobada";
 import SelectorFacturaAprobada from "./SelectorFacturaAprobada";
+import { avisarFalloEnvioSifen } from "../../utils/sifen";
 
 interface ProductoOpcion {
   id: string;
@@ -116,6 +117,7 @@ export default function NotaDebitoPage() {
           `<b>Total:</b> ${formatMoney(Number(res.total ?? 0))}<br/>` +
           `<b>Estado SIFEN:</b> ${res.estadoSifen ?? "Sin enviar"}</div>`
       });
+      await avisarFalloEnvioSifen(res);
       navigate("/notas-debito");
     } catch (error: unknown) {
       console.error(error);

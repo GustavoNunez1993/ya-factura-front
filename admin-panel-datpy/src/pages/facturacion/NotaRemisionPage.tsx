@@ -19,6 +19,7 @@ import { PersonaService } from "../../services/PersonaService";
 import { ProductosService } from "../../services/ProductosService";
 import { TimbradoService } from "../../services/TimbradoService";
 import { NRO_CAJA, verificarCajaAbierta } from "../../utils/caja";
+import { avisarFalloEnvioSifen } from "../../utils/sifen";
 
 interface Opcion {
   id: string;
@@ -331,6 +332,7 @@ export default function NotaRemisionPage() {
         html: `<div style="text-align:left"><b>Numeración:</b> ${res.dEst}-${res.dPunExp}-${res.dNumDoc}<br/>` +
           `<b>Estado SIFEN:</b> ${res.estadoSifen ?? "Sin enviar"}</div>`
       });
+      await avisarFalloEnvioSifen(res);
       navigate("/notas-remision");
     } catch (error: unknown) {
       console.error(error);

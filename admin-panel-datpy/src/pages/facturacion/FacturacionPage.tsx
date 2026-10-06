@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
 
 import { Button } from "primereact/button";
@@ -19,7 +19,7 @@ import { VendedorService, type Vendedor } from "../../services/VendedorService";
 import { CajaAperturaCierreService } from "../../services/CajaAperturaCierreService";
 import { CondicionVentaService, type CondicionVenta } from "../../services/CondicionVentaService";
 import { CotizacionService } from "../../services/CotizacionService";
-import { descargarBoletaVentaPdf } from "../../comprobantes/invoices";
+import { avisarFalloEnvioSifen } from "../../utils/sifen";
 
 interface Persona {
   id: string;
@@ -58,6 +58,22 @@ interface FacturaItem {
   exenta: number;
   iva5: number;
   iva10: number;
+}
+
+/** Ítem y cobro tal como los devuelve GET /facturas/{id} (para editar la factura). */
+interface DetalleFacturaGuardada {
+  productoId: string;
+  codigo?: string | null;
+  descripcion?: string | null;
+  cantidad?: number | null;
+  precioUnitario?: number | null;
+  tasaIva?: number | null;
+}
+
+interface PagoFacturaGuardada {
+  formaPago?: string | null;
+  monto?: number | null;
+  referencia?: string | null;
 }
 
 interface PagoItem {
@@ -130,6 +146,9 @@ const recalcularItem = (item: FacturaItem): FacturaItem => {
 
 export default function FacturacionPage() {
   const navigate = useNavigate();
+  // Con id: edición de una factura sin enviar, con error o rechazada por SIFEN (se reprocesa).
+  const { id: facturaEditId } = useParams<{ id: string }>();
+  const [facturaEditada, setFacturaEditada] = useState<{ numeracion: string; puntoOriginal: string } | null>(null);
   const hoy = useMemo(() => startOfDay(new Date()), []);
   const fechaMinima = useMemo(() => addDays(hoy, -29), [hoy]);
   const fechaMaxima = useMemo(() => addDays(hoy, 5), [hoy]);
@@ -254,6 +273,10 @@ export default function FacturacionPage() {
       if (predeterminada) {
         setCondicionVentaId(predeterminada.id);
       }
+
+      if (facturaEditId) {
+        await cargarFacturaParaEditar(facturaEditId, condicionesRes ?? []);
+      }
     } catch (error) {
       console.error("Error cargando datos de facturación", error);
       setClientes([]);
@@ -263,6 +286,62 @@ export default function FacturacionPage() {
       setCondiciones([]);
       setCotizaciones({ PYG: 1 });
     }
+  };
+
+  const cargarFacturaParaEditar = async (id: string, condicionesDisponibles: CondicionVenta[]) => {
+    const factura = await FacturaService.getById(id);
+    if (!factura?.editable) {
+      await Swal.fire(
+        "No se puede editar",
+        "Sólo se pueden editar facturas sin enviar, con error de envío o rechazadas por SIFEN.",
+        "warning"
+      );
+      navigate("/facturacion");
+      return;
+    }
+
+    const codigoMoneda = ({ 1: "PYG", 2: "USD", 3: "BRL", 4: "EUR" } as Record<number, string>)[factura.monedaId] ?? "PYG";
+    const cotizacion = Number(factura.cotizacion ?? 1) || 1;
+    const condicion =
+      condicionesDisponibles.find((c) => c.tipoOperacion === factura.condicionOperacionId && c.predeterminada) ??
+      condicionesDisponibles.find((c) => c.tipoOperacion === factura.condicionOperacionId);
+    const punto = `${factura.dEst}-${factura.dPunExp}`;
+
+    setClienteId(factura.clienteId ?? null);
+    setCanalVentaId(factura.canalVentaId ?? null);
+    setVendedorSeleccionadoId(factura.vendedorSeleccionadoId ?? null);
+    if (condicion) setCondicionVentaId(condicion.id);
+    setMoneda(codigoMoneda);
+    setPuntoExpedicion(punto);
+    if (factura.dFeEmiDE) setFecha(startOfDay(new Date(factura.dFeEmiDE)));
+    setDescuento(Number(factura.subtotal?.descuento ?? 0));
+    setAnticipo(Number(factura.subtotal?.anticipo ?? 0));
+    setItems(
+      (factura.detalles ?? []).map((d: DetalleFacturaGuardada) =>
+        recalcularItem({
+          id: crypto.randomUUID(),
+          productoId: d.productoId,
+          codigo: d.codigo ?? "",
+          cantidad: Number(d.cantidad ?? 0),
+          descripcion: d.descripcion ?? "",
+          precioUnitario: Number(d.precioUnitario ?? 0),
+          precioUnitarioBase: Number(d.precioUnitario ?? 0) * cotizacion,
+          porcentajeIva: Number(d.tasaIva ?? 0),
+          exenta: 0,
+          iva5: 0,
+          iva10: 0
+        })
+      )
+    );
+    setPagos(
+      (factura.pagos ?? []).map((p: PagoFacturaGuardada) => ({
+        id: crypto.randomUUID(),
+        formaPago: p.formaPago ?? "EFECTIVO",
+        monto: Number(p.monto ?? 0),
+        referencia: p.referencia ?? ""
+      }))
+    );
+    setFacturaEditada({ numeracion: `${punto}-${factura.dNumDoc}`, puntoOriginal: punto });
   };
 
   useEffect(() => {
@@ -616,62 +695,6 @@ export default function FacturacionPage() {
     return <span className="text-color-secondary">-</span>;
   };
 
-  const abrirBoletaImprimible = async (dNumDocReal?: string, facturaRes?: any) => {
-    const cliente = clientes.find((item) => item.id === clienteId);
-    const condicionLabel = condicionSeleccionada?.descripcion ?? "";
-
-    const clienteRazonSocial = facturaRes?.dNomRec ?? cliente?.razonSocial ?? "-";
-    const clienteDireccion   = facturaRes?.dDirRec ?? cliente?.direccion ?? "";
-    const clienteDocumento   = facturaRes?.dRucRec
-      ? `${facturaRes.dRucRec}${facturaRes.dDVRec ? "-" + facturaRes.dDVRec : ""}`
-      : (cliente?.ruc
-          ? `${cliente.ruc}${cliente.dv ? "-" + cliente.dv : ""}`
-          : (cliente?.nroDocumento || "-"));
-
-    const parts = (puntoExpedicion || "").split("-");
-    const est  = /^\d+$/.test(parts[0] ?? "") ? parts[0] : "001";
-    const pexp = /^\d+$/.test(parts[1] ?? "") ? parts[1] : "001";
-    const puntoDisplay = `${est}-${pexp}`;
-    const nroDoc = `${puntoDisplay}-${(dNumDocReal ?? "0000001").padStart(7, "0")}`;
-
-    await descargarBoletaVentaPdf({
-      puntoExpedicion: puntoDisplay,
-      nroDoc,
-      fecha,
-      moneda,
-      condicionVenta: condicionSeleccionada?.tipoOperacion ?? 1,
-      condicionLabel,
-      clienteRazonSocial,
-      clienteDocumento,
-      clienteDireccion,
-      items: items.map((item) => ({
-        codigo: item.codigo,
-        descripcion: item.descripcion,
-        cantidad: item.cantidad,
-        precioUnitario: item.precioUnitario,
-        exenta: item.exenta,
-        iva5: item.iva5,
-        iva10: item.iva10,
-      })),
-      pagos: pagos.map((pago) => ({
-        formaPago: pago.formaPago,
-        referencia: pago.referencia || "",
-        monto: pago.monto,
-      })),
-      resumen: {
-        totalExenta: resumen.totalExenta,
-        subtotalIva5: resumen.subtotalIva5,
-        subtotalIva10: resumen.subtotalIva10,
-        liquidacionIva5: resumen.liquidacionIva5,
-        liquidacionIva10: resumen.liquidacionIva10,
-        totalIva: resumen.totalIva,
-      },
-      totalAbonar,
-      vuelto,
-      cdc: facturaRes?.cdc ?? undefined,
-    });
-  };
-
   const limpiarFacturacion = () => {
     setFecha(hoy);
     setClienteId(null);
@@ -862,17 +885,23 @@ const confirmarCobro = async () => {
 
     console.log("PAYLOAD FACTURA", payload);
 
-    const facturaCreada = await FacturaService.create(payload);
+    const facturaCreada = facturaEditId
+      ? await FacturaService.update(facturaEditId, payload)
+      : await FacturaService.create(payload);
 
-    await abrirBoletaImprimible(facturaCreada?.dNumDoc ?? facturaCreada?.dnumDoc, facturaCreada);
-
-    await Swal.fire("Cobro registrado", "La venta quedó registrada correctamente", "success");
+    if (facturaEditId) {
+      await Swal.fire("Factura actualizada", "La factura se corrigió y quedó lista para reprocesar en SIFEN", "success");
+    } else {
+      await Swal.fire("Cobro registrado", "La venta quedó registrada correctamente", "success");
+    }
+    await avisarFalloEnvioSifen(facturaCreada);
     setCobroVisible(false);
     limpiarFacturacion();
     navigate("/facturacion");
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("Error registrando factura", error);
-    Swal.fire("Error", "No se pudo registrar la factura", "error");
+    const mensaje = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
+    Swal.fire("Error", mensaje || "No se pudo registrar la factura", "error");
   }
 };
 
@@ -880,16 +909,22 @@ const facturarACredito = async () => {
   try {
     const payload = crearFacturaPayload();
 
-    const facturaCreada = await FacturaService.create(payload);
+    const facturaCreada = facturaEditId
+      ? await FacturaService.update(facturaEditId, payload)
+      : await FacturaService.create(payload);
 
-    await abrirBoletaImprimible(facturaCreada?.dNumDoc ?? facturaCreada?.dnumDoc, facturaCreada);
-
-    await Swal.fire("Factura registrada", "La venta a crédito quedó registrada correctamente", "success");
+    if (facturaEditId) {
+      await Swal.fire("Factura actualizada", "La factura se corrigió y quedó lista para reprocesar en SIFEN", "success");
+    } else {
+      await Swal.fire("Factura registrada", "La venta a crédito quedó registrada correctamente", "success");
+    }
+    await avisarFalloEnvioSifen(facturaCreada);
     limpiarFacturacion();
     navigate("/facturacion");
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("Error registrando factura", error);
-    Swal.fire("Error", "No se pudo registrar la factura", "error");
+    const mensaje = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
+    Swal.fire("Error", mensaje || "No se pudo registrar la factura", "error");
   }
 };
 
@@ -1140,8 +1175,19 @@ const facturarACredito = async () => {
       </style>
 
       <div className="flex flex-column gap-1 mb-4">
-        <h2 className="m-0">Facturación</h2>
-        <small className="text-color-secondary">Carga de comprobante de venta</small>
+        <h2 className="m-0">{facturaEditId ? `Editar factura ${facturaEditada?.numeracion ?? ""}` : "Facturación"}</h2>
+        <small className="text-color-secondary">
+          {facturaEditId
+            ? "Corrija la factura y vuelva a confirmarla para reprocesarla en SIFEN"
+            : "Carga de comprobante de venta"}
+        </small>
+        {facturaEditada && (
+          <small className={puntoExpedicion === facturaEditada.puntoOriginal ? "text-color-secondary" : "text-orange-500 font-semibold"}>
+            {puntoExpedicion === facturaEditada.puntoOriginal
+              ? `Se mantiene el número ${facturaEditada.numeracion}.`
+              : `Cambió el punto de expedición: se asignará un número nuevo de ${puntoExpedicion} y el ${facturaEditada.numeracion} quedará sin usar.`}
+          </small>
+        )}
       </div>
 
       <div className="grid">

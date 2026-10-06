@@ -14,6 +14,7 @@ import { FacturaService, MOTIVOS_NOTA_CREDITO } from "../../services/FacturaServ
 import { NRO_CAJA, verificarCajaAbierta } from "../../utils/caja";
 import type { DetalleFacturaAprobada, FacturaAprobada } from "./SelectorFacturaAprobada";
 import SelectorFacturaAprobada from "./SelectorFacturaAprobada";
+import { avisarFalloEnvioSifen } from "../../utils/sifen";
 
 type Modo = "cantidad" | "monto";
 
@@ -155,6 +156,7 @@ export default function NotaCreditoPage() {
           `<b>Total:</b> ${formatMoney(Number(res.total ?? 0))}<br/>` +
           `<b>Estado SIFEN:</b> ${res.estadoSifen ?? "Sin enviar"}</div>`
       });
+      await avisarFalloEnvioSifen(res);
       navigate("/notas-credito");
     } catch (error: unknown) {
       console.error(error);

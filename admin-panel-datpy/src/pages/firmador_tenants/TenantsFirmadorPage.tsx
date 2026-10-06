@@ -42,10 +42,6 @@ const tenantFormVacio: TenantForm = {
 interface AmbienteForm {
   ambiente: "TEST" | "PRODUCCION";
   habilitado: boolean;
-  urlRecepcion: string;
-  urlConsultaLote: string;
-  urlConsultaDe: string;
-  urlEventos: string;
   csc: string;
   idCsc: string;
 }
@@ -53,10 +49,6 @@ interface AmbienteForm {
 const ambienteFormVacio: AmbienteForm = {
   ambiente: "TEST",
   habilitado: true,
-  urlRecepcion: "",
-  urlConsultaLote: "",
-  urlConsultaDe: "",
-  urlEventos: "",
   csc: "",
   idCsc: ""
 };
@@ -111,6 +103,7 @@ export default function TenantsFirmadorPage() {
 
   const [ambientes, setAmbientes] = useState<FirmadorAmbiente[]>([]);
   const [ambienteForm, setAmbienteForm] = useState<AmbienteForm>(ambienteFormVacio);
+  const [ambienteEditando, setAmbienteEditando] = useState<FirmadorAmbiente | null>(null);
   const [guardandoAmbiente, setGuardandoAmbiente] = useState(false);
 
   const [certificados, setCertificados] = useState<FirmadorCertificado[]>([]);
@@ -199,34 +192,66 @@ export default function TenantsFirmadorPage() {
   const gestionar = async (tenant: FirmadorTenant) => {
     setSelectedTenant(tenant);
     setAmbienteForm(ambienteFormVacio);
+    setAmbienteEditando(null);
     setCertificadoForm(certificadoFormVacio);
     setArchivoCertificado(null);
     setManageOpen(true);
     await Promise.all([cargarAmbientes(tenant.id), cargarCertificados(tenant.id)]);
   };
 
+  const editarAmbiente = (ambiente: FirmadorAmbiente) => {
+    setAmbienteEditando(ambiente);
+    setAmbienteForm({
+      ambiente: ambiente.ambiente,
+      habilitado: ambiente.habilitado,
+      // El CSC es secreto y firmador-xml nunca lo devuelve: vacío = conservar el actual.
+      csc: "",
+      idCsc: ambiente.idCsc ?? ""
+    });
+  };
+
+  const cancelarEdicionAmbiente = () => {
+    setAmbienteEditando(null);
+    setAmbienteForm(ambienteFormVacio);
+  };
+
   const guardarAmbiente = async () => {
     if (!selectedTenant) return;
 
+    // El CSC de la SET es alfanumérico de 32 caracteres: otro valor (p. ej. una contraseña que
+    // autocompletó el navegador) genera QR con "Código Hash del QR inválido" en e-kuatia.
+    const csc = ambienteForm.csc.trim();
+    if (csc && !/^[A-Za-z0-9]{32}$/.test(csc)) {
+      Swal.fire("Atención", "El CSC debe tener exactamente 32 caracteres alfanuméricos (el que entrega la SET).", "warning");
+      return;
+    }
+    if (!ambienteEditando && !csc) {
+      Swal.fire("Atención", "Cargue el CSC del ambiente: sin él no se puede generar el QR del KuDE.", "warning");
+      return;
+    }
+
+    const datos = {
+      habilitado: ambienteForm.habilitado,
+      csc: ambienteForm.csc.trim() || undefined,
+      idCsc: ambienteForm.idCsc.trim() || undefined
+    };
+
     try {
       setGuardandoAmbiente(true);
-      await FirmadorTenantService.crearAmbiente(selectedTenant.id, {
-        ambiente: ambienteForm.ambiente,
-        habilitado: ambienteForm.habilitado,
-        urlRecepcion: ambienteForm.urlRecepcion.trim() || undefined,
-        urlConsultaLote: ambienteForm.urlConsultaLote.trim() || undefined,
-        urlConsultaDe: ambienteForm.urlConsultaDe.trim() || undefined,
-        urlEventos: ambienteForm.urlEventos.trim() || undefined,
-        csc: ambienteForm.csc.trim() || undefined,
-        idCsc: ambienteForm.idCsc.trim() || undefined
-      });
+      if (ambienteEditando) {
+        await FirmadorTenantService.actualizarAmbiente(selectedTenant.id, ambienteEditando.id, datos);
+        Swal.fire("Listo", "Ambiente actualizado correctamente", "success");
+      } else {
+        await FirmadorTenantService.crearAmbiente(selectedTenant.id, { ambiente: ambienteForm.ambiente, ...datos });
+        Swal.fire("Listo", "Ambiente creado correctamente", "success");
+      }
 
-      Swal.fire("Listo", "Ambiente creado correctamente", "success");
-      setAmbienteForm(ambienteFormVacio);
+      cancelarEdicionAmbiente();
       await cargarAmbientes(selectedTenant.id);
     } catch (error: any) {
       console.error(error);
-      const mensaje = error?.response?.data?.message ?? "No se pudo crear el ambiente";
+      const mensaje =
+        error?.response?.data?.message ?? (ambienteEditando ? "No se pudo actualizar el ambiente" : "No se pudo crear el ambiente");
       Swal.fire("Error", mensaje, "error");
     } finally {
       setGuardandoAmbiente(false);
@@ -314,6 +339,10 @@ export default function TenantsFirmadorPage() {
     ) : (
       <Tag value="Sin CSC" severity="warning" icon="pi pi-exclamation-triangle" />
     );
+
+  const accionesAmbienteTemplate = (rowData: FirmadorAmbiente) => (
+    <Button icon="pi pi-pencil" text rounded size="small" tooltip="Editar ambiente" onClick={() => editarAmbiente(rowData)} />
+  );
 
   const idCertificadoTemplate = (rowData: FirmadorCertificado) => idCopiable(rowData.id);
 
@@ -417,9 +446,15 @@ export default function TenantsFirmadorPage() {
             <DataTable value={ambientes} size="small" emptyMessage="No hay ambientes registrados" className="mb-3">
               <Column field="ambiente" header="Ambiente" />
               <Column header="Estado" body={estadoAmbienteTemplate} />
-              <Column field="urlRecepcion" header="URL Recepción" body={(row: FirmadorAmbiente) => row.urlRecepcion ?? "-"} />
               <Column header="CSC (QR)" body={cscAmbienteTemplate} style={{ width: "150px" }} />
+              <Column body={accionesAmbienteTemplate} style={{ width: "60px" }} />
             </DataTable>
+
+            {ambienteEditando && (
+              <div className="mb-2">
+                <b>Editando ambiente {ambienteEditando.ambiente}</b>
+              </div>
+            )}
 
             <div className="grid">
               <div className="col-6">
@@ -428,6 +463,7 @@ export default function TenantsFirmadorPage() {
                   className="w-full"
                   value={ambienteForm.ambiente}
                   options={AMBIENTES_OPCIONES}
+                  disabled={!!ambienteEditando}
                   onChange={(e) => setAmbienteForm({ ...ambienteForm, ambiente: e.value })}
                 />
               </div>
@@ -439,24 +475,11 @@ export default function TenantsFirmadorPage() {
                 />
                 <label htmlFor="ambienteHabilitado" className="m-0">Habilitado</label>
               </div>
-              <div className="col-6">
-                <label>URL Recepción</label>
-                <InputText className="w-full" value={ambienteForm.urlRecepcion} onChange={(e) => setAmbienteForm({ ...ambienteForm, urlRecepcion: e.target.value })} />
-              </div>
-              <div className="col-6">
-                <label>URL Consulta Lote</label>
-                <InputText className="w-full" value={ambienteForm.urlConsultaLote} onChange={(e) => setAmbienteForm({ ...ambienteForm, urlConsultaLote: e.target.value })} />
-              </div>
-              <div className="col-6">
-                <label>URL Consulta DE</label>
-                <InputText className="w-full" value={ambienteForm.urlConsultaDe} onChange={(e) => setAmbienteForm({ ...ambienteForm, urlConsultaDe: e.target.value })} />
-              </div>
-              <div className="col-6">
-                <label>URL Eventos</label>
-                <InputText className="w-full" value={ambienteForm.urlEventos} onChange={(e) => setAmbienteForm({ ...ambienteForm, urlEventos: e.target.value })} />
-              </div>
 
               <div className="col-12">
+                <small className="text-color-secondary" style={{ display: "block", marginBottom: "6px" }}>
+                  Las direcciones de los servicios web de SIFEN son fijas por ambiente (las publica la SET), no se configuran por empresa.
+                </small>
                 <small className="text-color-secondary">
                   El <b>CSC</b> (Código de Seguridad del Contribuyente) y su <b>ID</b> los entrega la SET por ambiente. Sin ellos no se puede generar el código QR del DE.
                 </small>
@@ -470,7 +493,11 @@ export default function TenantsFirmadorPage() {
                   onChange={(e) => setAmbienteForm({ ...ambienteForm, csc: e.target.value })}
                   feedback={false}
                   toggleMask
-                  placeholder="Secreto entregado por la SET"
+                  autoComplete="new-password"
+                  maxLength={32}
+                  placeholder={
+                    ambienteEditando?.cscConfigurado ? "Ya cargado — dejar vacío para conservarlo" : "Secreto entregado por la SET"
+                  }
                 />
               </div>
               <div className="col-4">
@@ -480,20 +507,23 @@ export default function TenantsFirmadorPage() {
                   maxLength={4}
                   keyfilter="pint"
                   placeholder="0001"
+                  autoComplete="off"
                   value={ambienteForm.idCsc}
                   onChange={(e) => setAmbienteForm({ ...ambienteForm, idCsc: e.target.value })}
                 />
               </div>
             </div>
 
-            <Button
-              label="Agregar Ambiente"
-              icon="pi pi-plus"
-              severity="success"
-              loading={guardandoAmbiente}
-              onClick={guardarAmbiente}
-              className="mt-2"
-            />
+            <div className="flex gap-2 mt-2">
+              <Button
+                label={ambienteEditando ? "Guardar Cambios" : "Agregar Ambiente"}
+                icon={ambienteEditando ? "pi pi-check" : "pi pi-plus"}
+                severity="success"
+                loading={guardandoAmbiente}
+                onClick={guardarAmbiente}
+              />
+              {ambienteEditando && <Button label="Cancelar" severity="secondary" onClick={cancelarEdicionAmbiente} />}
+            </div>
           </TabPanel>
 
           <TabPanel header="Certificados">
@@ -507,11 +537,11 @@ export default function TenantsFirmadorPage() {
             <div className="grid">
               <div className="col-6">
                 <label>Alias *</label>
-                <InputText className="w-full" value={certificadoForm.alias} onChange={(e) => setCertificadoForm({ ...certificadoForm, alias: e.target.value })} />
+                <InputText className="w-full" name="certAlias" autoComplete="off" value={certificadoForm.alias} onChange={(e) => setCertificadoForm({ ...certificadoForm, alias: e.target.value })} />
               </div>
               <div className="col-6">
                 <label>RUC del certificado *</label>
-                <InputText className="w-full" value={certificadoForm.ruc} onChange={(e) => setCertificadoForm({ ...certificadoForm, ruc: e.target.value })} />
+                <InputText className="w-full" name="certRuc" autoComplete="off" value={certificadoForm.ruc} onChange={(e) => setCertificadoForm({ ...certificadoForm, ruc: e.target.value })} />
               </div>
               <div className="col-6">
                 <label>Contraseña del .p12 *</label>
@@ -522,6 +552,8 @@ export default function TenantsFirmadorPage() {
                   onChange={(e) => setCertificadoForm({ ...certificadoForm, password: e.target.value })}
                   feedback={false}
                   toggleMask
+                  name="certPassword"
+                  autoComplete="new-password"
                 />
               </div>
               <div className="col-6">
@@ -529,6 +561,8 @@ export default function TenantsFirmadorPage() {
                 <InputText
                   className="w-full"
                   placeholder="Ej: vault/certificados/empresa-x"
+                  name="certPasswordRef"
+                  autoComplete="off"
                   value={certificadoForm.passwordSecretReference}
                   onChange={(e) => setCertificadoForm({ ...certificadoForm, passwordSecretReference: e.target.value })}
                 />

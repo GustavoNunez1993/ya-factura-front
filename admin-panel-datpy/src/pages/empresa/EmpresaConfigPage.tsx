@@ -34,6 +34,20 @@ const AMBIENTES_SIFEN = [
   { label: "Producción", value: "PRODUCCION" }
 ];
 
+// Límites de las columnas en ya-factura-back (EmpresaJpaModel / EmpresaActividadEconomicaJpaModel).
+const MAX_DIRECCION = 255;
+const MAX_TELEFONO = 15;
+const MIN_TELEFONO = 6;
+const MAX_EMAIL = 80;
+const MAX_NUMERO_CASA = 999999;
+const MAX_CODIGO_ACTIVIDAD = 5;
+const MAX_DESCRIPCION_ACTIVIDAD = 100;
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const mensajeDeError = (error: any, porDefecto: string) => error?.response?.data?.message || porDefecto;
+
 export default function EmpresaConfigPage() {
   const empresaId = localStorage.getItem("empresaId") || "";
 
@@ -156,8 +170,30 @@ export default function EmpresaConfigPage() {
     }
   };
 
+  const validar = (): string | null => {
+    if (direccion.trim().length > MAX_DIRECCION) return `La dirección no puede superar ${MAX_DIRECCION} caracteres`;
+    const tel = telefono.trim();
+    if (tel && (tel.length < MIN_TELEFONO || tel.length > MAX_TELEFONO)) {
+      return `El teléfono debe tener entre ${MIN_TELEFONO} y ${MAX_TELEFONO} caracteres`;
+    }
+    const email = emailEmisor.trim();
+    if (email && email.length > MAX_EMAIL) return `El email no puede superar ${MAX_EMAIL} caracteres`;
+    if (email && !EMAIL_REGEX.test(email)) return "El email del emisor no es válido";
+    if (numeroCasa != null && (numeroCasa < 0 || numeroCasa > MAX_NUMERO_CASA)) return "El número de casa debe tener como máximo 6 dígitos";
+    if (paisId && !ciudadId) return "Complete la ubicación hasta la ciudad (o limpie el país)";
+    if (firmadorTenantId.trim() && !UUID_REGEX.test(firmadorTenantId.trim())) return "El tenant de firmador-xml debe ser un UUID válido";
+    if (firmadorCertificadoId.trim() && !UUID_REGEX.test(firmadorCertificadoId.trim())) return "El certificado debe ser un UUID válido";
+    return null;
+  };
+
   const guardar = async () => {
     if (!empresaId) return;
+
+    const errorValidacion = validar();
+    if (errorValidacion) {
+      Swal.fire("Atención", errorValidacion, "warning");
+      return;
+    }
 
     try {
       setGuardando(true);
@@ -166,10 +202,10 @@ export default function EmpresaConfigPage() {
       await EmpresaService.actualizar(empresaId, {
         ...actual,
         tipoContribuyente,
-        direccion,
+        direccion: direccion.trim() || null,
         numeroCasa,
-        telefono,
-        emailEmisor,
+        telefono: telefono.trim() || null,
+        emailEmisor: emailEmisor.trim() || null,
         ciudad: ciudadId ? { id: ciudadId } : null,
         firmadorTenantId: firmadorTenantId.trim() || null,
         ambienteSifen,
@@ -180,8 +216,7 @@ export default function EmpresaConfigPage() {
       Swal.fire("Listo", "Datos de la empresa actualizados correctamente", "success");
     } catch (error: any) {
       console.error(error);
-      const mensaje = error?.response?.data?.message ?? "No se pudo guardar la información de la empresa";
-      Swal.fire("Error", mensaje, "error");
+      Swal.fire("Error", mensajeDeError(error, "No se pudo guardar la información de la empresa"), "error");
     } finally {
       setGuardando(false);
     }
@@ -190,6 +225,14 @@ export default function EmpresaConfigPage() {
   const agregarActividad = async () => {
     if (!nuevoCodigo.trim() || !nuevaDescripcion.trim()) {
       Swal.fire("Atención", "Complete el código y la descripción de la actividad", "warning");
+      return;
+    }
+    if (nuevoCodigo.trim().length > MAX_CODIGO_ACTIVIDAD || nuevaDescripcion.trim().length > MAX_DESCRIPCION_ACTIVIDAD) {
+      Swal.fire(
+        "Atención",
+        `El código admite hasta ${MAX_CODIGO_ACTIVIDAD} caracteres y la descripción hasta ${MAX_DESCRIPCION_ACTIVIDAD}`,
+        "warning"
+      );
       return;
     }
 
@@ -206,7 +249,7 @@ export default function EmpresaConfigPage() {
       await cargarActividades();
     } catch (error) {
       console.error(error);
-      Swal.fire("Error", "No se pudo agregar la actividad económica", "error");
+      Swal.fire("Error", mensajeDeError(error, "No se pudo agregar la actividad económica"), "error");
     } finally {
       setGuardandoActividad(false);
     }
@@ -278,6 +321,7 @@ export default function EmpresaConfigPage() {
               <InputText
                 className="w-full"
                 placeholder="Calle 1 c/ calle 2"
+                maxLength={MAX_DIRECCION}
                 value={direccion}
                 onChange={(e) => setDireccion(e.target.value)}
               />
@@ -289,6 +333,9 @@ export default function EmpresaConfigPage() {
                 className="w-full"
                 inputClassName="w-full"
                 value={numeroCasa}
+                useGrouping={false}
+                min={0}
+                max={MAX_NUMERO_CASA}
                 onValueChange={(e) => setNumeroCasa(e.value ?? null)}
               />
             </div>
@@ -382,6 +429,8 @@ export default function EmpresaConfigPage() {
               <InputText
                 className="w-full"
                 placeholder="0999-9999999"
+                maxLength={MAX_TELEFONO}
+                keyfilter={/[\d\s()+-]/}
                 value={telefono}
                 onChange={(e) => setTelefono(e.target.value)}
               />
@@ -392,6 +441,8 @@ export default function EmpresaConfigPage() {
               <InputText
                 className="w-full"
                 placeholder="facturacion@empresa.com"
+                type="email"
+                maxLength={MAX_EMAIL}
                 value={emailEmisor}
                 onChange={(e) => setEmailEmisor(e.target.value)}
               />
@@ -414,11 +465,11 @@ export default function EmpresaConfigPage() {
           <div className="grid mt-2">
             <div className="col-12 md:col-3">
               <label>Código</label>
-              <InputText className="w-full" value={nuevoCodigo} onChange={(e) => setNuevoCodigo(e.target.value)} />
+              <InputText className="w-full" maxLength={MAX_CODIGO_ACTIVIDAD} value={nuevoCodigo} onChange={(e) => setNuevoCodigo(e.target.value)} />
             </div>
             <div className="col-12 md:col-6">
               <label>Descripción</label>
-              <InputText className="w-full" value={nuevaDescripcion} onChange={(e) => setNuevaDescripcion(e.target.value)} />
+              <InputText className="w-full" maxLength={MAX_DESCRIPCION_ACTIVIDAD} value={nuevaDescripcion} onChange={(e) => setNuevaDescripcion(e.target.value)} />
             </div>
             <div className="col-12 md:col-3 flex align-items-end">
               <Button
@@ -445,6 +496,7 @@ export default function EmpresaConfigPage() {
               <InputText
                 className="w-full"
                 placeholder="UUID del tenant"
+                maxLength={36}
                 value={firmadorTenantId}
                 onChange={(e) => setFirmadorTenantId(e.target.value)}
               />
@@ -465,6 +517,7 @@ export default function EmpresaConfigPage() {
               <InputText
                 className="w-full"
                 placeholder="UUID del certificado"
+                maxLength={36}
                 value={firmadorCertificadoId}
                 onChange={(e) => setFirmadorCertificadoId(e.target.value)}
               />

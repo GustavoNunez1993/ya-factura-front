@@ -85,6 +85,7 @@ function App() {
             }
           />
           <Route path="/facturacion-create" element={<FacturacionPage />} />
+          <Route path="/facturacion-edit/:id" element={<FacturacionPage />} />
           <Route
             path="/autofacturas"
             element={

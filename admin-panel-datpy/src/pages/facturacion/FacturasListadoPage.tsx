@@ -43,6 +43,8 @@ interface FacturaListado {
   /** Última respuesta de SIFEN, p. ej. 0300 "Lote recibido con éxito". */
   codigoRespuestaSifen?: string | null;
   mensajeRespuestaSifen?: string | null;
+  /** Motivo por el que el envío automático quedó en espera de corrección. */
+  errorEnvioAutomaticoSifen?: string | null;
 }
 
 const opcionesTiposDocumento = Object.entries(TIPOS_DOCUMENTO_ELECTRONICO).map(([value, label]) => ({
@@ -51,6 +53,15 @@ const opcionesTiposDocumento = Object.entries(TIPOS_DOCUMENTO_ELECTRONICO).map((
 }));
 
 const esFactura = (f: FacturaListado) => (f.tipoDocumentoElectronico ?? 1) === 1;
+
+/** Estados en los que SIFEN/firmador-xml rechazó el documento y se puede corregir. */
+const ESTADOS_SIFEN_RECHAZO = ["RECHAZADO", "ERROR_DEFINITIVO", "FIRMA_RECHAZADA", "VALIDACION_RECHAZADA"];
+
+/** Misma regla que el back (FacturaServiceImpl.motivoNoEditable): sin enviar, con error o rechazada. */
+const esEditable = (f: FacturaListado) =>
+  esFactura(f) &&
+  (f.estado ?? "").toLowerCase() !== "anulado" &&
+  (!f.cdc || ESTADOS_SIFEN_RECHAZO.includes((f.estadoSifen ?? "").toUpperCase()));
 
 const condicionesVenta = [
   { label: "Contado", value: "CONTADO" },
@@ -326,6 +337,36 @@ const estadoBody = (rowData: FacturaListado) => {
 
   const sifenEstadoBody = (rowData: FacturaListado) => {
     if (!rowData.cdc) {
+      if (rowData.errorEnvioAutomaticoSifen) {
+        // El envío automático falló por un error del documento y no se reintenta solo:
+        // hay que corregirlo y reenviarlo con "Enviar a SIFEN".
+        const verError = () =>
+          Swal.fire({
+            icon: "warning",
+            title: "Envío automático en espera",
+            html:
+              `<div style="text-align:left">No se pudo enviar a SIFEN y no se reintentará automáticamente:` +
+              `<pre style="white-space:pre-wrap;font-size:12px;margin:8px 0"></pre>` +
+              `Corrija el problema y reenvíelo con <b>Enviar a SIFEN</b>.</div>`,
+            didOpen: (popup) => {
+              const pre = popup.querySelector("pre");
+              if (pre) pre.textContent = rowData.errorEnvioAutomaticoSifen ?? "";
+            }
+          });
+        return (
+          <Tag
+            value="Error de envío"
+            icon="pi pi-exclamation-triangle"
+            severity="danger"
+            className="cursor-pointer"
+            title={rowData.errorEnvioAutomaticoSifen}
+            role="button"
+            tabIndex={0}
+            onClick={verError}
+            onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && verError()}
+          />
+        );
+      }
       return <Tag value="Sin enviar" severity="secondary" />;
     }
 
@@ -598,6 +639,17 @@ const estadoBody = (rowData: FacturaListado) => {
           loading={loadingInforme === rowData.id}
           onClick={() => verKude(rowData)}
         />
+
+        {esEditable(rowData) && (
+          <Button
+            icon="pi pi-pencil"
+            severity="warning"
+            text
+            rounded
+            tooltip="Editar y reprocesar"
+            onClick={() => irAEmitir(`/facturacion-edit/${rowData.id}`)}
+          />
+        )}
 
         <Button
           icon="pi pi-send"

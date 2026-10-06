@@ -17,6 +17,7 @@ import { FacturaService } from "../../services/FacturaService";
 import { ProductosService } from "../../services/ProductosService";
 import { TimbradoService } from "../../services/TimbradoService";
 import { NRO_CAJA, verificarCajaAbierta } from "../../utils/caja";
+import { avisarFalloEnvioSifen } from "../../utils/sifen";
 
 interface Opcion {
   id: string;
@@ -206,6 +207,7 @@ export default function AutofacturaPage() {
           `<b>Estado SIFEN:</b> ${res.estadoSifen ?? "Sin enviar"}` +
           `</div>`
       });
+      await avisarFalloEnvioSifen(res);
       navigate("/autofacturas");
     } catch (error: unknown) {
       console.error(error);

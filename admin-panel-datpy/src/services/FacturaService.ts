@@ -204,6 +204,12 @@ export const FacturaService = {
     return res.data;
   },
 
+  /** Edita y reprocesa una factura sin enviar, con error o rechazada por SIFEN. */
+  async update(id: string, data: any) {
+    const res = await api.put(`/facturas/${id}`, data);
+    return res.data;
+  },
+
   async getById(id: string) {
     const res = await api.get(`/facturas/${id}`);
     return res.data;
