@@ -14,6 +14,7 @@ import { FacturaService, MOTIVOS_NOTA_CREDITO } from "../../services/FacturaServ
 import { NRO_CAJA, verificarCajaAbierta } from "../../utils/caja";
 import type { DetalleFacturaAprobada, FacturaAprobada } from "./SelectorFacturaAprobada";
 import SelectorFacturaAprobada from "./SelectorFacturaAprobada";
+import { decimalesMoneda, codigoMoneda, formatMonto, prefijoMoneda } from "../../utils/moneda";
 import { avisarFalloEnvioSifen } from "../../utils/sifen";
 
 type Modo = "cantidad" | "monto";
@@ -46,8 +47,6 @@ const formasReintegro = [
   { label: "Transferencia", value: "TRANSFERENCIA" }
 ];
 
-const formatMoney = (value: number) =>
-  new Intl.NumberFormat("es-PY", { style: "currency", currency: "PYG", maximumFractionDigits: 0 }).format(value || 0);
 
 /**
  * Alta de una Nota de Crédito Electrónica (iTiDE=5) sobre una factura aprobada por SIFEN:
@@ -60,6 +59,9 @@ export default function NotaCreditoPage() {
   const [searchParams] = useSearchParams();
 
   const [factura, setFactura] = useState<FacturaAprobada | null>(null);
+  // La nota va en la moneda de la factura que corrige: montos, prefijos y decimales salen de ahí.
+  const formatMoney = (value: number) => formatMonto(value, factura?.monedaId);
+  const decimalesFactura = decimalesMoneda(codigoMoneda(factura?.monedaId));
   const [motivo, setMotivo] = useState<number>(2);
   const [alcance, setAlcance] = useState<"total" | "parcial">("total");
   const [infAdic, setInfAdic] = useState("");
@@ -252,8 +254,9 @@ export default function NotaCreditoPage() {
                               value={f.monto}
                               min={0}
                               max={f.detalle.total}
-                              maxFractionDigits={0}
-                              prefix="Gs. "
+                              minFractionDigits={decimalesFactura}
+                              maxFractionDigits={decimalesFactura}
+                              prefix={prefijoMoneda(factura?.monedaId)}
                               disabled={!f.incluir}
                               inputStyle={{ width: "100%" }}
                               onValueChange={(e) => actualizarFila(i, { monto: e.value ?? null })}

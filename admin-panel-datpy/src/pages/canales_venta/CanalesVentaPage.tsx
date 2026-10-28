@@ -10,6 +10,7 @@ import { Column } from "primereact/column";
 
 import { CanalVentaService, type CanalVenta } from "../../services/CanalVentaService";
 import { useIsMobile } from "../../hooks/useIsMobile";
+import { usePermisos } from "../../hooks/usePermisos";
 
 const formularioInicial: CanalVenta = {
   codigo: "",
@@ -17,6 +18,8 @@ const formularioInicial: CanalVenta = {
 };
 
 export default function CanalesVentaPage() {
+    // Botones según el rol (el back valida igual cada acción).
+    const { puede } = usePermisos();
 
   const [canales, setCanales] = useState<CanalVenta[]>([]);
   const [search, setSearch] = useState("");
@@ -189,6 +192,7 @@ export default function CanalesVentaPage() {
         tooltip="Ver"
         onClick={() => ver(rowData)}
       />
+      {puede("CANALES_VENTA", "EDITAR") && (
       <Button
         icon="pi pi-pencil"
         rounded
@@ -197,6 +201,8 @@ export default function CanalesVentaPage() {
         tooltip="Editar"
         onClick={() => editar(rowData)}
       />
+      )}
+      {puede("CANALES_VENTA", "ELIMINAR") && (
       <Button
         icon="pi pi-trash"
         rounded
@@ -205,6 +211,7 @@ export default function CanalesVentaPage() {
         tooltip="Eliminar"
         onClick={() => eliminar(rowData.id)}
       />
+      )}
     </div>
   );
 
@@ -217,7 +224,9 @@ export default function CanalesVentaPage() {
           <h2 className="m-0">Canales de Venta</h2>
           <small className="text-color-secondary">Tienda, WhatsApp, correo, etc.</small>
         </div>
+        {puede("CANALES_VENTA", "CREAR") && (
         <Button label="Nuevo Canal" icon="pi pi-plus" severity="success" onClick={abrirNuevo} />
+        )}
       </div>
 
       <div className="p-input-icon-left mb-3 w-full">

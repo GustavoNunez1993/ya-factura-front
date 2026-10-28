@@ -8,18 +8,43 @@ import { DataTable } from "primereact/datatable";
 import { Column } from "primereact/column";
 import { Tag } from "primereact/tag";
 import { Skeleton } from "primereact/skeleton";
+import { SelectButton } from "primereact/selectbutton";
 import Swal from "sweetalert2";
 import { DashboardService, type DashboardResumen, type FacturaResumen } from "../../services/DashboardService";
-import { CajaAperturaCierreService } from "../../services/CajaAperturaCierreService";
+import { verificarCajaAbierta } from "../../utils/caja";
+import { useUsaCaja } from "../../hooks/useUsaCaja";
 import { estiloTipoDocumento, nombreTipoDocumento } from "../../services/FacturaService";
+import { formatMonto } from "../../utils/moneda";
+import type { MontoMoneda } from "../../services/FacturaService";
 import "./dashboard.css";
 
+/**
+ * Importes de varias monedas, uno por renglón: nunca se suman monedas distintas. El primero
+ * (guaraníes si hay) va destacado; sin movimientos, Gs. 0.
+ */
+function MontosPorMoneda({ montos, grande = false }: { montos: MontoMoneda[]; grande?: boolean }) {
+  const lista = montos.length > 0 ? montos : [{ monedaId: 1, total: 0 }];
+  const [principal, ...resto] = lista;
+  return (
+    <div>
+      <div style={grande ? { fontSize: "2rem", fontWeight: 700, lineHeight: 1.15 } : undefined}>
+        {formatMonto(principal.total, principal.monedaId)}
+      </div>
+      {resto.map((m) => (
+        <div key={m.monedaId} style={grande ? { fontSize: "1.15rem", fontWeight: 600 } : undefined}>
+          {formatMonto(m.total, m.monedaId)}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 const resumenVacio: DashboardResumen = {
-  ventasPeriodo: 0,
+  ventasPorMoneda: [],
+  ventasEquivalenteGs: 0,
   facturasEmitidasPeriodo: 0,
   documentosEmitidosPeriodo: 0,
   documentosPorTipo: [],
-  comprasPeriodo: 0,
   productosActivos: 0,
   productosInactivos: 0,
   clientesActivos: 0,
@@ -27,8 +52,8 @@ const resumenVacio: DashboardResumen = {
   facturacionSemanal: [],
   facturasRecientes: [],
   facturasPendientes: [],
-  cobrosPeriodo: 0,
-  saldoPendienteCobro: 0,
+  cobrosPorMoneda: [],
+  saldoPendientePorMoneda: [],
   cobrosPorFormaPago: [],
   ultimosCobros: [],
   productosPorVencer: []
@@ -59,6 +84,9 @@ export default function Dashboard() {
 
   const [resumen, setResumen] = useState<DashboardResumen>(resumenVacio);
   const [loading, setLoading] = useState(true);
+  const usaCaja = useUsaCaja();
+  // Moneda que muestra la dona de cobros por forma de pago (no se mezclan monedas en un mismo reparto).
+  const [monedaFormaPago, setMonedaFormaPago] = useState<string | null>(null);
   // Rango por defecto: el mes actual completo (del 1 al último día).
   const [fechaDesde, setFechaDesde] = useState<Date>(() => inicioDeMes(hoy));
   const [fechaHasta, setFechaHasta] = useState<Date>(() => finDeMes(hoy));
@@ -116,21 +144,7 @@ export default function Dashboard() {
   const irANuevaFactura = async () => {
     try {
       setLoadingNuevaFactura(true);
-      await CajaAperturaCierreService.getCajaAbierta(1);
-      navigate("/facturacion-create");
-    } catch {
-      Swal.fire({
-        icon: "warning",
-        title: "Sin apertura de caja",
-        text: "No hay una apertura de caja activa para el día de hoy. Realice la apertura de caja antes de emitir facturas.",
-        confirmButtonText: "Ir a apertura de caja",
-        showCancelButton: true,
-        cancelButtonText: "Cancelar"
-      }).then((result) => {
-        if (result.isConfirmed) {
-          navigate("/apertura-caja");
-        }
-      });
+      if (await verificarCajaAbierta()) navigate("/facturacion-create");
     } finally {
       setLoadingNuevaFactura(false);
     }
@@ -240,19 +254,39 @@ export default function Dashboard() {
 
   const formaPagoPalette = ["#0d9488", "#f59e0b", "#6d28d9", "#0ea5e9", "#f43f5e", "#64748b", "#22c55e", "#eab308"];
 
+  // Guaraníes primero; la elegida si sigue habiendo cobros en ella, si no la primera.
+  const monedasFormaPago = [...new Set(resumen.cobrosPorFormaPago.map((item) => item.moneda ?? "PYG"))].sort(
+    (a, b) => (a === "PYG" ? -1 : b === "PYG" ? 1 : a.localeCompare(b))
+  );
+  const monedaElegida =
+    monedaFormaPago && monedasFormaPago.includes(monedaFormaPago) ? monedaFormaPago : monedasFormaPago[0] ?? "PYG";
+  const formasDeLaMoneda = resumen.cobrosPorFormaPago.filter((item) => (item.moneda ?? "PYG") === monedaElegida);
+  // El color sigue a la forma de pago (mismo color en todas las monedas), no a su posición.
+  const formasPago = [...new Set(resumen.cobrosPorFormaPago.map((item) => item.descripcion))].sort();
+  const colorForma = (descripcion: string) =>
+    formaPagoPalette[formasPago.indexOf(descripcion) % formaPagoPalette.length];
+
   const cobrosFormaPagoData = {
-    labels: resumen.cobrosPorFormaPago.map((item) => item.descripcion),
+    labels: formasDeLaMoneda.map((item) => item.descripcion),
     datasets: [
       {
-        data: resumen.cobrosPorFormaPago.map((item) => item.monto),
-        backgroundColor: resumen.cobrosPorFormaPago.map((_, i) => formaPagoPalette[i % formaPagoPalette.length]),
-        hoverBackgroundColor: resumen.cobrosPorFormaPago.map((_, i) => formaPagoPalette[i % formaPagoPalette.length])
+        data: formasDeLaMoneda.map((item) => item.monto),
+        backgroundColor: formasDeLaMoneda.map((item) => colorForma(item.descripcion)),
+        hoverBackgroundColor: formasDeLaMoneda.map((item) => colorForma(item.descripcion))
       }
     ]
   };
 
-  const formatGs = (value: number) => {
-    return new Intl.NumberFormat("es-PY").format(Math.round(value));
+  const cobrosFormaPagoOptions = {
+    ...doughnutOptions,
+    plugins: {
+      ...doughnutOptions.plugins,
+      tooltip: {
+        callbacks: {
+          label: (item: { label: string; parsed: number }) => `${item.label}: ${formatMonto(item.parsed, monedaElegida)}`
+        }
+      }
+    }
   };
 
   const formatFecha = (value: string) => {
@@ -285,7 +319,7 @@ export default function Dashboard() {
   };
 
   const totalBodyTemplate = (rowData: FacturaResumen) => {
-    return <span style={{ fontWeight: 600 }}>Gs. {formatGs(rowData.total)}</span>;
+    return <span style={{ fontWeight: 600 }}>{formatMonto(rowData.total, rowData.monedaId)}</span>;
   };
 
   const cardBaseStyle = {
@@ -386,62 +420,44 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <Card
-        className="border-round-2xl mb-4"
-        style={cardBaseStyle}
-      >
-        <div className="flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-          <div>
-            <div className="text-900" style={{ fontSize: "1.3rem", fontWeight: 700 }}>
-              Accesos Rápidos
-            </div>
-            <div className="text-600">Acciones principales del sistema</div>
-          </div>
-        </div>
-
-        <div className="grid">
-          <div className="col-12 md:col-6 xl:col-3">
-            <Button
-              label="Nueva Factura"
-              icon="pi pi-file-plus"
-              className="w-full dashboard-action-btn"
-              outlined
-              loading={loadingNuevaFactura}
-              onClick={irANuevaFactura}
-            />
-          </div>
-
-          <div className="col-12 md:col-6 xl:col-3">
-            <Button
-              label="Nuevo Cliente"
-              icon="pi pi-user-plus"
-              className="w-full dashboard-action-btn"
-              outlined
-              onClick={() => navigate("/personas")}
-            />
-          </div>
-
-          <div className="col-12 md:col-6 xl:col-3">
-            <Button
-              label="Nuevo Producto"
-              icon="pi pi-box"
-              className="w-full dashboard-action-btn"
-              outlined
-              onClick={() => navigate("/productos")}
-            />
-          </div>
-
-          <div className="col-12 md:col-6 xl:col-3">
-            <Button
-              label="Apertura Caja"
-              icon="pi pi-wallet"
-              className="w-full dashboard-action-btn"
-              outlined
-              onClick={() => navigate("/apertura-caja")}
-            />
-          </div>
-        </div>
-      </Card>
+      {/* Accesos rápidos: una barra compacta, no una tarjeta, para no robarle espacio a los indicadores. */}
+      <div className="dashboard-quick-actions flex align-items-center flex-wrap gap-2 mb-4">
+        <span className="text-600 text-sm mr-1">Accesos rápidos:</span>
+        <Button
+          label="Nueva Factura"
+          icon="pi pi-file-plus"
+          size="small"
+          className="dashboard-quick-btn"
+          loading={loadingNuevaFactura}
+          onClick={irANuevaFactura}
+        />
+        <Button
+          label="Nuevo Cliente"
+          icon="pi pi-user-plus"
+          size="small"
+          outlined
+          className="dashboard-quick-btn"
+          onClick={() => navigate("/personas")}
+        />
+        <Button
+          label="Nuevo Producto"
+          icon="pi pi-box"
+          size="small"
+          outlined
+          className="dashboard-quick-btn"
+          onClick={() => navigate("/productos")}
+        />
+        {usaCaja && (
+          <Button
+            label="Apertura Caja"
+            icon="pi pi-wallet"
+            size="small"
+            outlined
+            className="dashboard-quick-btn"
+            onClick={() => navigate("/apertura-caja")}
+          />
+        )}
+      </div>
 
       <div className="grid">
         <div className="col-12 md:col-6 xl:col-3">
@@ -459,9 +475,7 @@ export default function Dashboard() {
                 {loading ? (
                   <Skeleton width="7rem" height="2rem" className="dashboard-skeleton" />
                 ) : (
-                  <div style={{ fontSize: "2rem", fontWeight: 700 }}>
-                    Gs. {formatGs(resumen.ventasPeriodo)}
-                  </div>
+                  <MontosPorMoneda montos={resumen.ventasPorMoneda} grande />
                 )}
               </div>
 
@@ -479,6 +493,11 @@ export default function Dashboard() {
 
             <div className="text-sm opacity-80">
               Facturas + notas de débito − notas de crédito {textoPeriodo}
+              {resumen.ventasPorMoneda.some((m) => m.monedaId !== 1) && (
+                <div className="mt-1">
+                  Equivalente total: {formatMonto(resumen.ventasEquivalenteGs, 1)} (cotización de cada comprobante)
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -610,7 +629,7 @@ export default function Dashboard() {
             </div>
 
             <div className="grid">
-              {(loading ? [1, 4, 5, 6, 7].map((tipo) => ({ tipo, emitidos: 0, anulados: 0, total: 0 })) : resumen.documentosPorTipo).map((d) => {
+              {(loading ? [1, 4, 5, 6, 7].map((tipo) => ({ tipo, emitidos: 0, anulados: 0, totales: [] as MontoMoneda[] })) : resumen.documentosPorTipo).map((d) => {
                 const estilo = estiloTipoDocumento(d.tipo);
                 return (
                   <div key={d.tipo} className="col-12 sm:col-6 lg:col">
@@ -630,7 +649,11 @@ export default function Dashboard() {
                         <>
                           <div style={{ fontSize: "1.8rem", fontWeight: 700, color: estilo.color }}>{d.emitidos}</div>
                           <div className="text-600 text-sm">
-                            {d.tipo === 7 ? "Sin importe" : `Gs. ${formatGs(d.total)}`}
+                            {d.tipo === 7
+                              ? "Sin importe"
+                              : (d.totales.length > 0 ? d.totales : [{ monedaId: 1, total: 0 }])
+                                  .map((m) => formatMonto(m.total, m.monedaId))
+                                  .join(" · ")}
                             {d.tipo === 4 && " en compras"}
                           </div>
                           {d.anulados > 0 && (
@@ -674,9 +697,7 @@ export default function Dashboard() {
                       {loading ? (
                         <Skeleton width="7rem" height="2rem" className="dashboard-skeleton" />
                       ) : (
-                        <div style={{ fontSize: "2rem", fontWeight: 700 }}>
-                          Gs. {formatGs(resumen.cobrosPeriodo)}
-                        </div>
+                        <MontosPorMoneda montos={resumen.cobrosPorMoneda} grande />
                       )}
                     </div>
 
@@ -709,9 +730,7 @@ export default function Dashboard() {
                       {loading ? (
                         <Skeleton width="7rem" height="2rem" className="dashboard-skeleton" />
                       ) : (
-                        <div style={{ fontSize: "2rem", fontWeight: 700 }}>
-                          Gs. {formatGs(resumen.saldoPendienteCobro)}
-                        </div>
+                        <MontosPorMoneda montos={resumen.saldoPendientePorMoneda} grande />
                       )}
                     </div>
 
@@ -728,7 +747,18 @@ export default function Dashboard() {
               </div>
 
               <div className="col-12 xl:col-6">
-                <div className="text-900 font-medium mb-2">Cobros por Forma de Pago</div>
+                <div className="flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                  <div className="text-900 font-medium">Cobros por Forma de Pago</div>
+                  {monedasFormaPago.length > 1 && (
+                    <SelectButton
+                      value={monedaElegida}
+                      options={monedasFormaPago.map((m) => ({ label: m, value: m }))}
+                      allowEmpty={false}
+                      onChange={(e) => setMonedaFormaPago(e.value)}
+                      pt={{ button: { className: "p-button-sm" } }}
+                    />
+                  )}
+                </div>
 
                 <div style={{ height: "180px" }}>
                   {loading ? (
@@ -738,7 +768,7 @@ export default function Dashboard() {
                       Aún no hay cobros registrados en el período
                     </div>
                   ) : (
-                    <Chart type="doughnut" data={cobrosFormaPagoData} options={doughnutOptions} />
+                    <Chart type="doughnut" data={cobrosFormaPagoData} options={cobrosFormaPagoOptions} />
                   )}
                 </div>
               </div>
@@ -775,7 +805,7 @@ export default function Dashboard() {
                       </div>
 
                       <span className="font-semibold text-teal-600">
-                        Gs. {formatGs(item.monto)}
+                        {formatMonto(item.monto, item.monedaId)}
                       </span>
                     </div>
                   ))}
@@ -792,7 +822,10 @@ export default function Dashboard() {
                 <div className="text-900" style={{ fontSize: "1.4rem", fontWeight: 700 }}>
                   Tendencia de Ventas
                 </div>
-                <div className="text-600">Ventas netas por mes (facturas + ND − NC)</div>
+                <div className="text-600">
+                  Ventas netas por mes (facturas + ND − NC), en guaraníes: lo facturado en otra moneda se
+                  convierte con la cotización de cada comprobante
+                </div>
               </div>
 
               <div
@@ -894,7 +927,7 @@ export default function Dashboard() {
                     </div>
 
                     <span className="font-semibold text-orange-600">
-                      Gs. {formatGs(item.total)}
+                      {formatMonto(item.total, item.monedaId)}
                     </span>
                   </div>
                 ))}

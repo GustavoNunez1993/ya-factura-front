@@ -1,15 +1,22 @@
-import { Outlet } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
 import { useState, useEffect } from "react";
 
 import Sidebar from "../components/Sidebar";
 import Topbar from "./Topbar";
 import { useTheme } from "../context/ThemeContext";
+import { usePermisos } from "../hooks/usePermisos";
+import SinPermiso from "../components/SinPermiso";
 
 export default function AdminLayout() {
   const { theme } = useTheme();
   const isDark = theme === "dark";
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  // No se entra por URL a una pantalla sin permiso (el back igual lo rechazaría). El Dashboard es
+  // la pantalla de inicio: sin permiso se muestra una bienvenida en lugar de "sin acceso".
+  const { pathname } = useLocation();
+  const { puedeRuta } = usePermisos();
+  const permitido = puedeRuta(pathname);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
   useEffect(() => {
@@ -61,7 +68,7 @@ export default function AdminLayout() {
                 boxShadow: "0 4px 12px rgba(0,0,0,0.05)"
               }}
             >
-              <Outlet />
+              {permitido ? <Outlet /> : <SinPermiso inicio={pathname === "/dashboard"} />}
             </div>
           </div>
         </main>

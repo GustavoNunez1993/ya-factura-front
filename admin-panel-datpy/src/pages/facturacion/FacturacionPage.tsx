@@ -16,10 +16,11 @@ import { ProductosService } from "../../services/ProductosService";
 import { FacturaService } from "../../services/FacturaService";
 import { CanalVentaService, type CanalVenta } from "../../services/CanalVentaService";
 import { VendedorService, type Vendedor } from "../../services/VendedorService";
-import { CajaAperturaCierreService } from "../../services/CajaAperturaCierreService";
 import { CondicionVentaService, type CondicionVenta } from "../../services/CondicionVentaService";
 import { CotizacionService } from "../../services/CotizacionService";
+import { PuntoExpedicionService } from "../../services/PuntoExpedicionService";
 import { avisarFalloEnvioSifen } from "../../utils/sifen";
+import { verificarCajaAbierta } from "../../utils/caja";
 
 interface Persona {
   id: string;
@@ -31,8 +32,25 @@ interface Persona {
 }
 
 interface ProductoStockDeposito {
+  depositoId: string;
   depositoNombre: string;
   stock: number;
+}
+
+/**
+ * Una opción del selector por producto y depósito: así se elige de dónde se descuenta. Los
+ * productos sin stock cargado en ningún depósito tienen una sola opción sin depósito (el back
+ * usa el de venta por defecto). descripcion/codigo/codigoBarra/depositoNombre van arriba para el filtro.
+ */
+interface OpcionProducto {
+  clave: string;
+  producto: Producto;
+  depositoId: string | null;
+  depositoNombre: string | null;
+  stock: number;
+  descripcion: string;
+  codigo: string;
+  codigoBarra?: string;
 }
 
 interface Producto {
@@ -49,6 +67,8 @@ interface Producto {
 interface FacturaItem {
   id: string;
   productoId: string;
+  /** Depósito del que se descuenta; null = depósito de venta por defecto. */
+  depositoId: string | null;
   codigo: string;
   cantidad: number;
   descripcion: string;
@@ -63,6 +83,7 @@ interface FacturaItem {
 /** Ítem y cobro tal como los devuelve GET /facturas/{id} (para editar la factura). */
 interface DetalleFacturaGuardada {
   productoId: string;
+  depositoId?: string | null;
   codigo?: string | null;
   descripcion?: string | null;
   cantidad?: number | null;
@@ -90,12 +111,6 @@ const monedas = [
   { label: "Euros", value: "EUR" }
 ];
 
-const puntosExpedicion = [
-  { label: "001-001", value: "001-001" },
-  { label: "001-002", value: "001-002" },
-  { label: "002-001", value: "002-001" }
-];
-
 const formasPago = [
   { label: "Efectivo", value: "EFECTIVO" },
   { label: "Tarjeta", value: "TARJETA" },
@@ -105,6 +120,19 @@ const formasPago = [
   { label: "Billetera", value: "BILLETERA" },
   { label: "Otro", value: "OTRO" }
 ];
+
+/**
+ * Decimales con que se opera en cada moneda: guaraníes sin decimales, extranjeras con 2 (los
+ * mismos que se muestran y que acepta el campo de monto). Precios, subtotales y totales se
+ * redondean a esto para que lo que se ve, lo que se cobra y lo que se envía al back coincidan
+ * exactamente: el back rechaza la factura si los pagos no suman el total.
+ */
+const decimalesMoneda = (currency = "PYG") => (currency === "PYG" ? 0 : 2);
+
+const redondear = (value: number, currency = "PYG") => {
+  const factor = 10 ** decimalesMoneda(currency);
+  return Math.round((value + Number.EPSILON) * factor) / factor;
+};
 
 const formatMoney = (value: number, currency = "PYG") =>
   new Intl.NumberFormat("es-PY", {
@@ -133,8 +161,8 @@ const addDays = (date: Date, days: number) => {
   return startOfDay(value);
 };
 
-const recalcularItem = (item: FacturaItem): FacturaItem => {
-  const subtotal = item.cantidad * item.precioUnitario;
+const recalcularItem = (item: FacturaItem, currency: string): FacturaItem => {
+  const subtotal = redondear(item.cantidad * item.precioUnitario, currency);
 
   return {
     ...item,
@@ -171,9 +199,13 @@ export default function FacturacionPage() {
   // selector de "Moneda" más abajo.
   const [cotizaciones, setCotizaciones] = useState<Record<string, number>>({ PYG: 1 });
   const [puntoExpedicion, setPuntoExpedicion] = useState("");
+  // Puntos (establecimiento-punto) activos y con timbrado activo de la empresa.
+  const [puntosExpedicion, setPuntosExpedicion] = useState<{ label: string; value: string }[]>([]);
+  // Número que probablemente reciba la factura (el real lo asigna el back al guardar), por punto.
+  const [siguienteNumero, setSiguienteNumero] = useState<{ punto: string; valor: string; error: boolean } | null>(null);
   const [descuento, setDescuento] = useState<number>(0);
   const [anticipo, setAnticipo] = useState<number>(0);
-  const [productoId, setProductoId] = useState<string | null>(null);
+  const [opcionProductoClave, setOpcionProductoClave] = useState<string | null>(null);
   const [productoSelectorKey, setProductoSelectorKey] = useState(0);
   const [cantidadInputKey, setCantidadInputKey] = useState(0);
   const [cantidad, setCantidad] = useState<number | null>(1);
@@ -203,13 +235,13 @@ export default function FacturacionPage() {
   const monedasDisponibles = monedas.filter((m) => cotizaciones[m.value] != null);
 
   const totalAbonar = useMemo(
-    () => items.reduce((total, item) => total + item.exenta + item.iva5 + item.iva10, 0),
-    [items]
+    () => redondear(items.reduce((total, item) => total + item.exenta + item.iva5 + item.iva10, 0), moneda),
+    [items, moneda]
   );
 
   const totalDescuento = Math.max(descuento, 0);
   const totalAnticipo = Math.max(anticipo, 0);
-  const totalNeto = Math.max(totalAbonar - totalDescuento - totalAnticipo, 0);
+  const totalNeto = Math.max(redondear(totalAbonar - totalDescuento - totalAnticipo, moneda), 0);
 
   const resumen = useMemo(() => {
     const totalExenta = items.reduce((total, item) => total + item.exenta, 0);
@@ -229,12 +261,12 @@ export default function FacturacionPage() {
   }, [items]);
 
   const totalPagado = useMemo(
-    () => pagos.reduce((total, pago) => total + pago.monto, 0),
-    [pagos]
+    () => redondear(pagos.reduce((total, pago) => total + pago.monto, 0), moneda),
+    [pagos, moneda]
   );
 
-  const saldoPendiente = Math.max(totalNeto - totalPagado, 0);
-  const vuelto = Math.max(totalPagado - totalNeto, 0);
+  const saldoPendiente = Math.max(redondear(totalNeto - totalPagado, moneda), 0);
+  const vuelto = Math.max(redondear(totalPagado - totalNeto, moneda), 0);
   const tableScrollHeight = `${Math.min(Math.max(items.length * 56 + 56, 180), 520)}px`;
 
   const condicionSeleccionada = useMemo(
@@ -244,7 +276,22 @@ export default function FacturacionPage() {
 
   const esContado = (condicionSeleccionada?.tipoOperacion ?? 1) === 1;
 
+  const cargarPuntosExpedicion = async () => {
+    const empresaId = localStorage.getItem("empresaId");
+    if (!empresaId) return;
+    try {
+      const opciones = await PuntoExpedicionService.opcionesActivas(empresaId);
+      setPuntosExpedicion(opciones);
+      // Con un único punto no hay nada que elegir: se preselecciona (sin pisar el de una factura en edición).
+      if (opciones.length === 1) setPuntoExpedicion((actual) => actual || opciones[0].value);
+    } catch (error) {
+      console.error("Error cargando puntos de expedición", error);
+      setPuntosExpedicion([]);
+    }
+  };
+
   const cargarDatos = async () => {
+    cargarPuntosExpedicion();
     try {
       const [clientesRes, productosRes, canalesRes, vendedoresRes, condicionesRes, cotizacionesRes] =
         await Promise.all([
@@ -321,6 +368,7 @@ export default function FacturacionPage() {
         recalcularItem({
           id: crypto.randomUUID(),
           productoId: d.productoId,
+          depositoId: d.depositoId ?? null,
           codigo: d.codigo ?? "",
           cantidad: Number(d.cantidad ?? 0),
           descripcion: d.descripcion ?? "",
@@ -330,7 +378,7 @@ export default function FacturacionPage() {
           exenta: 0,
           iva5: 0,
           iva10: 0
-        })
+        }, codigoMoneda)
       )
     );
     setPagos(
@@ -348,18 +396,48 @@ export default function FacturacionPage() {
     cargarDatos();
   }, []);
 
+  // Al editar sin cambiar de punto, la factura conserva su número.
+  const conservaNumero = facturaEditada !== null && puntoExpedicion === facturaEditada.puntoOriginal;
+
   useEffect(() => {
-    CajaAperturaCierreService.getCajaAbierta(1).catch(() => {
-      Swal.fire({
-        icon: "warning",
-        title: "Sin apertura de caja",
-        text: "No hay una apertura de caja activa para el día de hoy. Realice la apertura de caja antes de emitir facturas.",
-        confirmButtonText: "Ir a apertura de caja",
-        showCancelButton: true,
-        cancelButtonText: "Volver al listado"
-      }).then((result) => {
-        navigate(result.isConfirmed ? "/apertura-caja" : "/facturacion");
+    const [establecimiento, punto] = puntoExpedicion.split("-");
+    const empresaId = localStorage.getItem("empresaId");
+    if (!establecimiento || !punto || !empresaId || conservaNumero) return;
+
+    let vigente = true;
+    PuntoExpedicionService.siguienteNumero(empresaId, establecimiento, punto)
+      .then(({ dNumDoc, dSerieNum }) => {
+        if (!vigente) return;
+        const serie = dSerieNum ? ` (serie ${dSerieNum})` : "";
+        setSiguienteNumero({ punto: puntoExpedicion, valor: `${puntoExpedicion}-${dNumDoc}${serie}`, error: false });
+      })
+      .catch((error) => {
+        if (!vigente) return;
+        const sinTimbrado = (error as { response?: { status?: number } })?.response?.status === 404;
+        setSiguienteNumero({
+          punto: puntoExpedicion,
+          valor: sinTimbrado ? "Sin timbrado activo" : "No se pudo consultar el número",
+          error: true
+        });
       });
+    return () => {
+      vigente = false;
+    };
+  }, [puntoExpedicion, conservaNumero]);
+
+  // Al editar, el punto original se ofrece aunque su timbrado ya no esté activo.
+  const opcionesPuntoExpedicion =
+    puntoExpedicion && !puntosExpedicion.some((p) => p.value === puntoExpedicion)
+      ? [...puntosExpedicion, { label: puntoExpedicion, value: puntoExpedicion }]
+      : puntosExpedicion;
+
+  const numeroProbable = conservaNumero
+    ? { valor: facturaEditada.numeracion, error: false }
+    : siguienteNumero?.punto === puntoExpedicion ? siguienteNumero : null;
+
+  useEffect(() => {
+    verificarCajaAbierta("Volver al listado").then((ok) => {
+      if (!ok) navigate("/facturacion");
     });
   }, [navigate]);
 
@@ -400,11 +478,37 @@ export default function FacturacionPage() {
     return new Intl.NumberFormat("es-PY", { maximumFractionDigits: 4 }).format(stock);
   };
 
-  const productoTemplate = (producto: Producto) => {
-    if (!producto) return null;
+  const opcionesProducto: OpcionProducto[] = useMemo(
+    () =>
+      productos.flatMap((producto): OpcionProducto[] => {
+        const base = { producto, descripcion: producto.descripcion, codigo: producto.codigo, codigoBarra: producto.codigoBarra };
+        const depositos = producto.stockPorDeposito ?? [];
+        if (depositos.length === 0) {
+          return [{ ...base, clave: `${producto.id}|`, depositoId: null, depositoNombre: null, stock: 0 }];
+        }
+        return depositos.map((d) => ({
+          ...base,
+          clave: `${producto.id}|${d.depositoId}`,
+          depositoId: d.depositoId,
+          depositoNombre: d.depositoNombre,
+          stock: d.stock
+        }));
+      }),
+    [productos]
+  );
 
-    const sinStock = (producto.stockTotal ?? 0) <= 0;
-    const stockPorDeposito = producto.stockPorDeposito ?? [];
+  const nombreDeposito = (productoId: string, depositoId: string | null) => {
+    if (!depositoId) return "Depósito por defecto";
+    return (
+      productos.find((p) => p.id === productoId)?.stockPorDeposito?.find((d) => d.depositoId === depositoId)
+        ?.depositoNombre ?? "—"
+    );
+  };
+
+  const opcionProductoTemplate = (opcion: OpcionProducto) => {
+    if (!opcion) return null;
+    const { producto } = opcion;
+    const sinStock = opcion.stock <= 0;
 
     return (
       <div className="factura-product-option">
@@ -416,38 +520,32 @@ export default function FacturacionPage() {
           Precio: {formatMoney(convertirDesdeGuaranies(producto.precioVenta ?? 0, moneda), moneda)}
         </div>
         <div className="text-sm mt-1">
-          {stockPorDeposito.length === 0 ? (
-            <span className="text-red-500 font-semibold">Sin stock</span>
-          ) : (
-            stockPorDeposito.map((item, index) => (
-              <span
-                key={item.depositoNombre}
-                className={item.stock <= 0 ? "text-red-500 font-semibold" : "text-green-600"}
-              >
-                {item.depositoNombre}: {formatStock(item.stock)}
-                {index < stockPorDeposito.length - 1 ? " · " : ""}
+          <i className="pi pi-box mr-1 text-color-secondary" style={{ fontSize: ".8rem" }} />
+          {opcion.depositoNombre ? (
+            <>
+              <span className="font-semibold">{opcion.depositoNombre}</span>
+              {" · "}
+              <span className={sinStock ? "text-red-500 font-semibold" : "text-green-600"}>
+                Stock: {formatStock(opcion.stock)}
               </span>
-            ))
+            </>
+          ) : (
+            <span className="text-red-500 font-semibold">Sin stock cargado</span>
           )}
-          <span className={sinStock ? "text-red-500 font-semibold" : "text-color-secondary"}>
-            {" "}(Total: {formatStock(producto.stockTotal)})
-          </span>
         </div>
       </div>
     );
   };
 
-  const productoValueTemplate = (producto: Producto) => {
-    if (!producto) return "Seleccione producto";
-
+  const opcionProductoValueTemplate = (opcion: OpcionProducto) => {
+    if (!opcion) return "Seleccione producto";
     return (
       <span>
-        {producto.codigo} - {producto.descripcion}
-        {producto.codigoBarra ? ` | ${producto.codigoBarra}` : ""}
+        {opcion.producto.codigo} - {opcion.producto.descripcion}
         {" | "}
-        {formatMoney(convertirDesdeGuaranies(producto.precioVenta ?? 0, moneda), moneda)}
+        {formatMoney(convertirDesdeGuaranies(opcion.producto.precioVenta ?? 0, moneda), moneda)}
         {" | "}
-        Stock: {formatStock(producto.stockTotal)}
+        {opcion.depositoNombre ? `${opcion.depositoNombre}: ${formatStock(opcion.stock)}` : "Sin stock cargado"}
       </span>
     );
   };
@@ -462,8 +560,8 @@ export default function FacturacionPage() {
         return recalcularItem({
           ...item,
           precioUnitarioBase,
-          precioUnitario: convertirDesdeGuaranies(precioUnitarioBase, value)
-        });
+          precioUnitario: redondear(convertirDesdeGuaranies(precioUnitarioBase, value), value)
+        }, value);
       })
     );
     setPagos([]);
@@ -489,7 +587,7 @@ export default function FacturacionPage() {
   };
 
   const limpiarCargaProducto = () => {
-    setProductoId(null);
+    setOpcionProductoClave(null);
     setProductoSelectorKey((prev) => prev + 1);
     setCantidad(1);
     setCantidadInputKey((prev) => prev + 1);
@@ -509,9 +607,10 @@ export default function FacturacionPage() {
   };
 
   const agregarProducto = async () => {
-    const producto = productos.find((item) => item.id === productoId);
+    const opcion = opcionesProducto.find((o) => o.clave === opcionProductoClave);
+    const producto = opcion?.producto;
 
-    if (!producto) {
+    if (!opcion || !producto) {
       Swal.fire("Atención", "Seleccione un producto", "warning");
       return;
     }
@@ -521,13 +620,31 @@ export default function FacturacionPage() {
       return;
     }
 
-    const itemExistente = items.find((item) => item.productoId === producto.id);
+    const itemExistente = items.find(
+      (item) => item.productoId === producto.id && item.depositoId === opcion.depositoId
+    );
+
+    // El back permite vender sin stock (queda como faltante), pero se avisa antes.
+    const pedido = cantidad + (itemExistente?.cantidad ?? 0);
+    if (opcion.depositoNombre && pedido > opcion.stock) {
+      const aviso = await Swal.fire({
+        icon: "warning",
+        title: "Stock insuficiente",
+        text: `En ${opcion.depositoNombre} hay ${formatStock(opcion.stock)} de ${producto.descripcion} y está facturando ${formatStock(pedido)}. ¿Agregar igual?`,
+        showCancelButton: true,
+        confirmButtonText: "Sí, agregar",
+        cancelButtonText: "Cancelar",
+        confirmButtonColor: "#4361ee",
+        cancelButtonColor: "#6b7280"
+      });
+      if (!aviso.isConfirmed) return;
+    }
 
     if (itemExistente) {
       const result = await Swal.fire({
         icon: "question",
         title: "Producto que desea agregar a la factura ya existe en la lista",
-        text: "¿Desea sumar la cantidad al ítem existente?",
+        text: `Ya hay un ítem de este producto desde ${opcion.depositoNombre ?? "el depósito por defecto"}. ¿Desea sumar la cantidad?`,
         showCancelButton: true,
         confirmButtonText: "Sí, sumar",
         cancelButtonText: "No",
@@ -541,7 +658,7 @@ export default function FacturacionPage() {
         const itemActualizado = recalcularItem({
           ...itemExistente,
           cantidad: itemExistente.cantidad + (cantidad ?? 1)
-        });
+        }, moneda);
 
         return [
           itemActualizado,
@@ -554,12 +671,13 @@ export default function FacturacionPage() {
     }
 
     const precioUnitarioBase = producto.precioVenta ?? 0;
-    const precioUnitario = convertirDesdeGuaranies(precioUnitarioBase, moneda);
+    const precioUnitario = redondear(convertirDesdeGuaranies(precioUnitarioBase, moneda), moneda);
     const porcentajeIva = producto.porcentajeIva ?? 10;
 
     const nuevoItem = recalcularItem({
       id: crypto.randomUUID(),
       productoId: producto.id,
+      depositoId: opcion.depositoId,
       codigo: producto.codigo,
       cantidad,
       descripcion: producto.descripcion,
@@ -569,7 +687,7 @@ export default function FacturacionPage() {
       exenta: 0,
       iva5: 0,
       iva10: 0
-    });
+    }, moneda);
 
     setItems((prev) => [nuevoItem, ...prev]);
     limpiarCargaProducto();
@@ -600,7 +718,7 @@ export default function FacturacionPage() {
             field === "precioUnitario"
               ? convertirAGuaranies(nextItem.precioUnitario, moneda)
               : nextItem.precioUnitarioBase
-        });
+        }, moneda);
       })
     );
   };
@@ -702,7 +820,7 @@ export default function FacturacionPage() {
     setVendedorSeleccionadoId(null);
     setCondicionVentaId(condiciones.find((c) => c.predeterminada)?.id ?? condiciones[0]?.id ?? null);
     setMoneda("PYG");
-    setPuntoExpedicion("");
+    setPuntoExpedicion(puntosExpedicion.length === 1 ? puntosExpedicion[0].value : "");
     setDescuento(0);
     setAnticipo(0);
     limpiarCargaProducto();
@@ -756,7 +874,8 @@ const crearFacturaPayload = () => {
     dSerieNum: null,
     dFeEmiDE: fecha.toISOString(),
 
-    dCondTiCam: moneda === "PYG" ? "1" : "2",
+    // Tipo de cambio global (una cotización para todo el comprobante); en PYG no corresponde.
+    dCondTiCam: moneda === "PYG" ? null : "1",
     dTiCam: cotizaciones[moneda] ?? 1,
 
     dInfAdic: null,
@@ -816,6 +935,7 @@ const crearFacturaPayload = () => {
 
       return {
         productoId: item.productoId,
+        depositoId: item.depositoId,
 
         dDesProSer: item.descripcion,
         cUniMed: "77",
@@ -972,7 +1092,18 @@ const facturarACredito = async () => {
           .facturacion-summary {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: .65rem;
+            gap: .25rem;
+          }
+
+          /* Descuento y anticipo lado a lado (PrimeFlex no tiene grid-cols-2). */
+          .facturacion-summary-ajustes {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: .5rem;
+          }
+
+          .facturacion-summary-ajustes label {
+            font-size: .875rem;
           }
 
           .facturacion-detail-layout {
@@ -1002,8 +1133,8 @@ const facturarACredito = async () => {
 
           .facturacion-summary-total {
             border-top: 1px solid #e5e7eb;
-            margin-top: .75rem;
-            padding-top: .75rem;
+            margin-top: .5rem;
+            padding-top: .5rem;
           }
 
           .facturacion-summary-total > * + * {
@@ -1257,106 +1388,123 @@ const facturarACredito = async () => {
           <Dropdown
             className="w-full"
             value={puntoExpedicion}
-            options={puntosExpedicion}
+            options={opcionesPuntoExpedicion}
             placeholder="Seleccione punto"
+            emptyMessage="Sin puntos activos (cargarlos en Puntos de Expedición)"
             onChange={(e) => setPuntoExpedicion(e.value)}
           />
         </div>
-
-        <div className="col-6 sm:col-6 md:col-3">
-          <label>Canal de venta</label>
-          <Dropdown
-            className="w-full"
-            value={canalVentaId}
-            options={canalesVenta}
-            optionLabel="descripcion"
-            optionValue="id"
-            placeholder="Seleccione canal"
-            filter
-            showClear
-            emptyMessage="No hay canales cargados"
-            onChange={(e) => setCanalVentaId(e.value)}
-          />
-        </div>
-
-        <div className="col-6 sm:col-6 md:col-3">
-          <label>Vendedor</label>
-          <Dropdown
-            className="w-full"
-            value={vendedorSeleccionadoId}
-            options={vendedores}
-            optionLabel="nombre"
-            optionValue="id"
-            placeholder="Seleccione vendedor"
-            filter
-            showClear
-            emptyMessage="No hay vendedores cargados"
-            onChange={(e) => setVendedorSeleccionadoId(e.value)}
-          />
-        </div>
-
       </div>
 
-      <div className="grid align-items-end mt-2">
-        <div className="col-12 sm:col-12 md:col-7">
-          <label>Producto</label>
-          <Dropdown
-            key={productoSelectorKey}
-            className="w-full"
-            value={productoId}
-            options={productos}
-            optionLabel="descripcion"
-            optionValue="id"
-            itemTemplate={productoTemplate}
-            valueTemplate={productoValueTemplate}
-            placeholder="Seleccione producto"
-            panelClassName="factura-product-dropdown"
-            scrollHeight="420px"
-            filter
-            filterBy="descripcion,codigo,codigoBarra"
-            filterInputAutoFocus
-            showClear
-            resetFilterOnHide
-            onChange={(e) => {
-              setProductoId(e.value);
-              window.setTimeout(() => cantidadInputRef.current?.focus(), 0);
-            }}
-          />
-        </div>
-
-        <div className="col-5 sm:col-4 md:col-2">
-          <label>Cantidad</label>
-          <InputNumber
-            key={cantidadInputKey}
-            ref={cantidadInputRef}
-            className="w-full"
-            inputClassName="w-full"
-            value={cantidad}
-            min={1}
-            minFractionDigits={0}
-            maxFractionDigits={3}
-            onValueChange={(e) => setCantidad(e.value ?? null)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                agregarProducto();
-              }
-            }}
-          />
-        </div>
-
-        <div className="col-7 sm:col-8 md:col-3">
-          <Button
-            className="w-full"
-            icon="pi pi-plus"
-            label="Agregar"
-            onClick={agregarProducto}
-          />
-        </div>
-      </div>
-
-      <div className="facturacion-detail-layout mt-4">
+      <div className="facturacion-detail-layout mt-1">
         <div className="facturacion-table-wrap">
+          {/* Datos de la venta y carga de productos van en esta columna: así el resumen arranca
+              justo debajo de la primera fila y usa el alto de la pantalla. */}
+          <div className="grid">
+            <div className="col-6 sm:col-6 md:col-4">
+              <label>Canal de venta</label>
+              <Dropdown
+                className="w-full"
+                value={canalVentaId}
+                options={canalesVenta}
+                optionLabel="descripcion"
+                optionValue="id"
+                placeholder="Seleccione canal"
+                filter
+                showClear
+                emptyMessage="No hay canales cargados"
+                onChange={(e) => setCanalVentaId(e.value)}
+              />
+            </div>
+
+            <div className="col-6 sm:col-6 md:col-4">
+              <label>Vendedor</label>
+              <Dropdown
+                className="w-full"
+                value={vendedorSeleccionadoId}
+                options={vendedores}
+                optionLabel="nombre"
+                optionValue="id"
+                placeholder="Seleccione vendedor"
+                filter
+                showClear
+                emptyMessage="No hay vendedores cargados"
+                onChange={(e) => setVendedorSeleccionadoId(e.value)}
+              />
+            </div>
+
+            <div className="col-6 sm:col-6 md:col-4">
+              <label>N° de comprobante (probable)</label>
+              <InputText
+                className={`w-full${numeroProbable?.error ? " p-invalid" : ""}`}
+                value={numeroProbable?.valor ?? ""}
+                placeholder="Seleccione punto de expedición"
+                readOnly
+                tabIndex={-1}
+              />
+              <small className="text-500">El número definitivo se asigna al guardar.</small>
+            </div>
+          </div>
+
+          <div className="grid align-items-end mb-2">
+            <div className="col-12 sm:col-12 md:col-7">
+              <label>Producto</label>
+              <Dropdown
+                key={productoSelectorKey}
+                className="w-full"
+                value={opcionProductoClave}
+                options={opcionesProducto}
+                optionLabel="descripcion"
+                optionValue="clave"
+                itemTemplate={opcionProductoTemplate}
+                valueTemplate={opcionProductoValueTemplate}
+                placeholder="Seleccione producto"
+                panelClassName="factura-product-dropdown"
+                scrollHeight="420px"
+                filter
+                filterBy="descripcion,codigo,codigoBarra,depositoNombre"
+                filterInputAutoFocus
+                showClear
+                resetFilterOnHide
+                onChange={(e) => {
+                  setOpcionProductoClave(e.value);
+                  window.setTimeout(() => cantidadInputRef.current?.focus(), 0);
+                }}
+              />
+            </div>
+
+            <div className="col-5 sm:col-4 md:col-2">
+              <label>Cantidad</label>
+              <InputNumber
+                key={cantidadInputKey}
+                ref={cantidadInputRef}
+                className="w-full"
+                inputClassName="w-full"
+                value={cantidad}
+                min={1}
+                minFractionDigits={0}
+                maxFractionDigits={3}
+                // onChange y no onValueChange: este último recién se dispara al salir del campo, y con
+                // Enter nuestro onKeyDown corre antes, así que agregarProducto leía la cantidad anterior.
+                onChange={(e) => setCantidad(e.value ?? null)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    agregarProducto();
+                  }
+                }}
+              />
+            </div>
+
+            <div className="col-7 sm:col-8 md:col-3">
+              <Button
+                className="w-full"
+                icon="pi pi-plus"
+                label="Agregar"
+                onClick={agregarProducto}
+              />
+            </div>
+          </div>
           {isMobile ? (
             items.length === 0 ? (
               <div className="factura-items-empty">No hay productos cargados</div>
@@ -1367,7 +1515,9 @@ const facturarACredito = async () => {
                     <div className="factura-item-card-header">
                       <div>
                         <div className="factura-item-card-title">{item.descripcion}</div>
-                        <div className="factura-item-card-code">Código: {item.codigo}</div>
+                        <div className="factura-item-card-code">
+                          Código: {item.codigo} · {nombreDeposito(item.productoId, item.depositoId)}
+                        </div>
                       </div>
                       <Button
                         icon="pi pi-trash"
@@ -1438,6 +1588,11 @@ const facturarACredito = async () => {
               <Column field="codigo" header="Código" />
               <Column header="Cantidad" body={cantidadBody} style={{ width: "96px" }} />
               <Column field="descripcion" header="Descripción producto" />
+              <Column
+                header="Depósito"
+                body={(item: FacturaItem) => nombreDeposito(item.productoId, item.depositoId)}
+                style={{ width: "140px" }}
+              />
               <Column header="Precio unitario" body={precioUnitarioBody} style={{ width: "152px" }} />
               <Column header="Exenta" body={moneyBody("exenta")} />
               <Column header="IVA 5" body={moneyBody("iva5")} />
@@ -1448,9 +1603,9 @@ const facturarACredito = async () => {
         </div>
 
         <aside className="facturacion-summary-panel">
-          <div className="text-lg font-semibold mb-3">Resumen</div>
+          <div className="text-lg font-semibold mb-2">Resumen</div>
 
-          <div className="grid grid-cols-2 gap-2 mb-3">
+          <div className="facturacion-summary-ajustes mb-2">
             <div>
               <label>Descuento</label>
               <InputNumber
@@ -1482,12 +1637,12 @@ const facturarACredito = async () => {
           </div>
 
           <div className="facturacion-summary">
-            <ResumenMonto label="Exenta" value={formatMoney(resumen.totalExenta, moneda)} />
-            <ResumenMonto label="Subtotal IVA 5" value={formatMoney(resumen.subtotalIva5, moneda)} />
-            <ResumenMonto label="Subtotal IVA 10" value={formatMoney(resumen.subtotalIva10, moneda)} />
-            <ResumenMonto label="IVA 5" value={formatMoney(resumen.liquidacionIva5, moneda)} />
-            <ResumenMonto label="IVA 10" value={formatMoney(resumen.liquidacionIva10, moneda)} />
-            <ResumenMonto label="Total IVA" value={formatMoney(resumen.totalIva, moneda)} />
+            <ResumenMonto compacto label="Exenta" value={formatMoney(resumen.totalExenta, moneda)} />
+            <ResumenMonto compacto label="Subtotal IVA 5" value={formatMoney(resumen.subtotalIva5, moneda)} />
+            <ResumenMonto compacto label="Subtotal IVA 10" value={formatMoney(resumen.subtotalIva10, moneda)} />
+            <ResumenMonto compacto label="IVA 5" value={formatMoney(resumen.liquidacionIva5, moneda)} />
+            <ResumenMonto compacto label="IVA 10" value={formatMoney(resumen.liquidacionIva10, moneda)} />
+            <ResumenMonto compacto label="Total IVA" value={formatMoney(resumen.totalIva, moneda)} />
           </div>
 
           <div className="facturacion-summary-total">
@@ -1638,15 +1793,18 @@ const facturarACredito = async () => {
 function ResumenMonto({
   label,
   value,
-  destacado = false
+  destacado = false,
+  compacto = false
 }: {
   label: string;
   value: string;
   destacado?: boolean;
+  /** Para el panel lateral angosto: menos alto y el monto en una sola línea. */
+  compacto?: boolean;
 }) {
   return (
     <div
-      className="px-2 py-2"
+      className={compacto ? "px-2 py-1" : "px-2 py-2"}
       style={{
         background: destacado ? "#f8fafc" : "#ffffff",
         borderRadius: 4,
@@ -1655,8 +1813,8 @@ function ResumenMonto({
     >
       <div className="text-color-secondary text-sm">{label}</div>
       <div
-        className={destacado ? "text-2xl font-bold" : "text-lg font-semibold"}
-        style={{ overflowWrap: "anywhere" }}
+        className={destacado ? "text-2xl font-bold" : compacto ? "font-semibold" : "text-lg font-semibold"}
+        style={compacto ? { whiteSpace: "nowrap" } : { overflowWrap: "anywhere" }}
       >
         {value}
       </div>

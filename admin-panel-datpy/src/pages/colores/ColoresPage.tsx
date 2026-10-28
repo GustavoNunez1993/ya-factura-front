@@ -10,6 +10,7 @@ import { Column } from "primereact/column";
 
 import { ColorService } from "../../services/ColorService";
 import { useIsMobile } from "../../hooks/useIsMobile";
+import { usePermisos } from "../../hooks/usePermisos";
 
 interface ColorItem {
   id?: string;
@@ -19,6 +20,8 @@ interface ColorItem {
 }
 
 export default function ColoresPage() {
+    // Botones según el rol (el back valida igual cada acción).
+    const { puede } = usePermisos();
   const [colores, setColores] = useState<ColorItem[]>([]);
   const [total, setTotal] = useState(0);
 
@@ -126,6 +129,7 @@ export default function ColoresPage() {
           tooltip="Ver"
           onClick={() => ver(rowData)}
         />
+        {puede("COLORES", "EDITAR") && (
         <Button
           icon="pi pi-pencil"
           rounded
@@ -134,6 +138,8 @@ export default function ColoresPage() {
           tooltip="Editar"
           onClick={() => editar(rowData)}
         />
+        )}
+        {puede("COLORES", "ELIMINAR") && (
         <Button
           icon="pi pi-trash"
           rounded
@@ -142,6 +148,7 @@ export default function ColoresPage() {
           tooltip="Eliminar"
           onClick={() => eliminar(rowData.id)}
         />
+        )}
       </div>
     );
   };
@@ -173,12 +180,14 @@ export default function ColoresPage() {
           </small>
         </div>
 
+        {puede("COLORES", "CREAR") && (
         <Button
           label="Nuevo Color"
           icon="pi pi-plus"
           severity="success"
           onClick={abrirNuevo}
         />
+        )}
       </div>
 
       <div className="p-input-icon-left mb-3 w-full">

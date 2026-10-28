@@ -32,6 +32,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (storedUser && accessToken && !isTokenExpired(accessToken)) {
       setUser(JSON.parse(storedUser));
+      // Rol y permisos actuales (pueden haber cambiado desde el último login).
+      api.get("/users/me")
+        .then((res) => {
+          const actualizado = { ...JSON.parse(storedUser), ...res.data };
+          localStorage.setItem("user", JSON.stringify(actualizado));
+          setUser(actualizado);
+        })
+        .catch(() => undefined);
     } else if (storedUser || accessToken) {
       localStorage.clear();
     }

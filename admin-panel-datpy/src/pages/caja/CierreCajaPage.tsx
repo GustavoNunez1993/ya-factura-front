@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import Swal from "sweetalert2";
 
 import { Button } from "primereact/button";
@@ -8,19 +8,30 @@ import { InputTextarea } from "primereact/inputtextarea";
 import { Tag } from "primereact/tag";
 
 import { useAuth } from "../../context/AuthContext";
-import type { CajaResumen, LineaMonto } from "../../services/CajaAperturaCierreService";
+import type { CajaResumen, LineaMonto, MontoMonedaCaja } from "../../services/CajaAperturaCierreService";
 import { CajaAperturaCierreService } from "../../services/CajaAperturaCierreService";
 import { nombreTipoDocumento } from "../../services/FacturaService";
 import { NRO_CAJA } from "../../utils/caja";
+import { decimalesMoneda, formatMonto, prefijoMoneda } from "../../utils/moneda";
+import { usePermisos } from "../../hooks/usePermisos";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const formatMoney = (value?: number | null) =>
-  new Intl.NumberFormat("es-PY", { style: "currency", currency: "PYG", maximumFractionDigits: 0 }).format(value || 0);
-
 const formatFecha = (value?: string | null) => (value ? new Date(`${value}T00:00:00`).toLocaleDateString("es-PY") : "-");
 
-function TablaMontos({ titulo, lineas, total, vacio }: { titulo: string; lineas: LineaMonto[]; total: number; vacio: string }) {
+/** Totales de varias monedas, uno por renglón (nunca se suman entre sí). */
+function Totales({ montos }: { montos: MontoMonedaCaja[] }) {
+  const lista = montos.length > 0 ? montos : [{ moneda: "PYG", monto: 0 }];
+  return (
+    <div className="text-right">
+      {lista.map((m) => (
+        <div key={m.moneda}>{formatMonto(m.monto, m.moneda)}</div>
+      ))}
+    </div>
+  );
+}
+
+function TablaMontos({ titulo, lineas, totales, vacio }: { titulo: string; lineas: LineaMonto[]; totales: MontoMonedaCaja[]; vacio: string }) {
   return (
     <div className="surface-card border-1 surface-border border-round p-3 h-full">
       <div className="font-semibold mb-2">{titulo}</div>
@@ -28,42 +39,59 @@ function TablaMontos({ titulo, lineas, total, vacio }: { titulo: string; lineas:
         <small className="text-color-secondary">{vacio}</small>
       ) : (
         lineas.map((l) => (
-          <div key={l.forma} className="flex justify-content-between py-1" style={{ borderBottom: "1px dashed #e5e7eb" }}>
+          <div
+            key={`${l.forma}-${l.moneda}`}
+            className="flex justify-content-between py-1"
+            style={{ borderBottom: "1px dashed var(--surface-border)" }}
+          >
             <span className="text-color-secondary" style={{ textTransform: "capitalize" }}>{l.forma.toLowerCase()}</span>
-            <span className="font-medium">{formatMoney(l.monto)}</span>
+            <span className="font-medium">{formatMonto(l.monto, l.moneda)}</span>
           </div>
         ))
       )}
       <div className="flex justify-content-between pt-2 font-bold">
         <span>Total</span>
-        <span>{formatMoney(total)}</span>
+        <Totales montos={totales} />
       </div>
     </div>
   );
 }
 
+const textoDiferencia = (diferencia: number, moneda: string) =>
+  diferencia === 0
+    ? `${moneda}: cuadra`
+    : diferencia < 0
+      ? `${moneda}: faltante de ${formatMonto(-diferencia, moneda)}`
+      : `${moneda}: sobrante de ${formatMonto(diferencia, moneda)}`;
+
 /**
  * Arqueo y cierre de la caja abierta: muestra lo cobrado (ventas contado, neto de vuelto, y
- * cobros de cuenta corriente), lo pagado (reintegros, autofacturas) por forma de pago y el
- * efectivo que debería haber. Al cerrar se registra el efectivo contado y la diferencia;
- * desde ahí ya no se pueden emitir comprobantes hasta la próxima apertura.
+ * cobros de cuenta corriente), lo pagado (reintegros, autofacturas) por forma de pago y moneda,
+ * y el efectivo que debería haber de cada moneda. Al cerrar se registra el efectivo contado de
+ * cada moneda y su diferencia; desde ahí ya no se pueden emitir comprobantes hasta la próxima apertura.
  */
 export default function CierreCajaPage() {
+  // Acciones según el rol (el back valida igual cada una).
+  const { puede } = usePermisos();
   const navigate = useNavigate();
+  // Desde el listado de aperturas se cierra una caja puntual; sin parámetro, la caja abierta.
+  const [searchParams] = useSearchParams();
+  const aperturaId = searchParams.get("aperturaId");
   const { user } = useAuth();
 
   const [resumen, setResumen] = useState<CajaResumen | null>(null);
   const [sinCaja, setSinCaja] = useState(false);
   const [cargando, setCargando] = useState(true);
-  const [montoContado, setMontoContado] = useState<number | null>(null);
+  // Efectivo contado por moneda (ISO 4217).
+  const [contado, setContado] = useState<Record<string, number | null>>({});
   const [observacion, setObservacion] = useState("");
   const [cerrando, setCerrando] = useState(false);
 
   const cargar = useCallback(async () => {
     try {
       setCargando(true);
-      const caja = await CajaAperturaCierreService.getCajaAbierta(NRO_CAJA);
-      setResumen(await CajaAperturaCierreService.getResumen(caja.id));
+      const id = aperturaId ?? (await CajaAperturaCierreService.getCajaAbierta(NRO_CAJA)).id;
+      setResumen(await CajaAperturaCierreService.getResumen(id));
       setSinCaja(false);
     } catch {
       setResumen(null);
@@ -71,26 +99,31 @@ export default function CierreCajaPage() {
     } finally {
       setCargando(false);
     }
-  }, []);
+  }, [aperturaId]);
 
   useEffect(() => {
     cargar();
   }, [cargar]);
 
-  const diferencia = resumen && montoContado != null ? montoContado - resumen.efectivoEsperado : null;
+  const diferenciaDe = (moneda: string, esperado: number) => {
+    const valor = contado[moneda];
+    return valor == null ? null : Math.round((valor - esperado) * 100) / 100;
+  };
 
   const cerrar = async () => {
     if (!resumen) return;
-    if (montoContado == null || montoContado < 0) {
-      Swal.fire("Atención", "Ingresá el efectivo contado en caja.", "info");
+    const faltan = resumen.arqueo.filter((a) => contado[a.moneda] == null || (contado[a.moneda] ?? 0) < 0);
+    if (faltan.length > 0) {
+      Swal.fire("Atención", `Ingresá el efectivo contado en ${faltan.map((a) => a.moneda).join(", ")}.`, "info");
       return;
     }
-    const detalleDiferencia =
-      diferencia === 0 ? "La caja cuadra." : diferencia! < 0 ? `Faltante de ${formatMoney(-diferencia!)}.` : `Sobrante de ${formatMoney(diferencia!)}.`;
+    const diferencias = resumen.arqueo.map((a) => ({ moneda: a.moneda, valor: diferenciaDe(a.moneda, a.efectivoEsperado)! }));
+    const cuadraTodo = diferencias.every((d) => d.valor === 0);
+    const detalle = diferencias.map((d) => textoDiferencia(d.valor, d.moneda)).join("<br/>");
     const { isConfirmed } = await Swal.fire({
-      icon: diferencia === 0 ? "question" : "warning",
+      icon: cuadraTodo ? "question" : "warning",
       title: `¿Cerrar la caja ${resumen.nroCaja}?`,
-      html: `${detalleDiferencia}<br/><small>Después del cierre no se pueden emitir comprobantes hasta abrir una nueva caja.</small>`,
+      html: `${detalle}<br/><small>Después del cierre no se pueden emitir comprobantes hasta abrir una nueva caja.</small>`,
       showCancelButton: true,
       confirmButtonText: "Cerrar caja",
       cancelButtonText: "Volver"
@@ -100,14 +133,15 @@ export default function CierreCajaPage() {
     try {
       setCerrando(true);
       const usuarioId = (user as { id?: unknown } | null)?.id;
+      const efectivo = Object.fromEntries(resumen.arqueo.map((a) => [a.moneda, contado[a.moneda] ?? 0]));
       const cerrada = await CajaAperturaCierreService.cerrar(
         resumen.aperturaId,
-        montoContado,
+        efectivo,
         observacion.trim() || undefined,
         typeof usuarioId === "string" && UUID_RE.test(usuarioId) ? usuarioId : undefined
       );
       setResumen(cerrada);
-      await Swal.fire("Caja cerrada", detalleDiferencia, "success");
+      await Swal.fire("Caja cerrada", detalle, "success");
     } catch (error: unknown) {
       const mensaje =
         (error as { response?: { data?: { message?: string } } })?.response?.data?.message ?? "No se pudo cerrar la caja";
@@ -141,7 +175,7 @@ export default function CierreCajaPage() {
         <div>
           <h2 className="m-0">Cierre de caja {resumen.nroCaja}</h2>
           <small className="text-color-secondary">
-            Abierta el {formatFecha(resumen.fechaApertura)} · Monto de apertura {formatMoney(resumen.montoApertura)}
+            Abierta el {formatFecha(resumen.fechaApertura)} · Monto de apertura {formatMonto(resumen.montoApertura, "PYG")}
           </small>
         </div>
         <Tag value={resumen.estado} severity={cerrada ? "secondary" : "success"} />
@@ -149,13 +183,13 @@ export default function CierreCajaPage() {
 
       <div className="grid">
         <div className="col-12 md:col-4">
-          <TablaMontos titulo="Ventas contado" lineas={resumen.ventasPorForma} total={resumen.totalVentas} vacio="Sin ventas contado" />
+          <TablaMontos titulo="Ventas contado" lineas={resumen.ventasPorForma} totales={resumen.totalVentas} vacio="Sin ventas contado" />
         </div>
         <div className="col-12 md:col-4">
-          <TablaMontos titulo="Cobros de cuenta corriente" lineas={resumen.cobrosCuentaCorriente} total={resumen.totalCobros} vacio="Sin cobros" />
+          <TablaMontos titulo="Cobros de cuenta corriente" lineas={resumen.cobrosCuentaCorriente} totales={resumen.totalCobros} vacio="Sin cobros" />
         </div>
         <div className="col-12 md:col-4">
-          <TablaMontos titulo="Salidas (reintegros, autofacturas)" lineas={resumen.egresosPorForma} total={resumen.totalEgresos} vacio="Sin salidas" />
+          <TablaMontos titulo="Salidas (reintegros, autofacturas)" lineas={resumen.egresosPorForma} totales={resumen.totalEgresos} vacio="Sin salidas" />
         </div>
 
         <div className="col-12 md:col-6">
@@ -167,7 +201,7 @@ export default function CierreCajaPage() {
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
                   <thead>
-                    <tr style={{ textAlign: "left", borderBottom: "1px solid #e5e7eb" }}>
+                    <tr style={{ textAlign: "left", borderBottom: "1px solid var(--surface-border)" }}>
                       <th style={{ padding: 4 }}>Tipo</th>
                       <th style={{ padding: 4, textAlign: "right" }}>Emitidos</th>
                       <th style={{ padding: 4, textAlign: "right" }}>Anulados</th>
@@ -176,11 +210,13 @@ export default function CierreCajaPage() {
                   </thead>
                   <tbody>
                     {resumen.comprobantes.map((c) => (
-                      <tr key={c.tipo} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                        <td style={{ padding: 4 }}>{nombreTipoDocumento(c.tipo)}</td>
-                        <td style={{ padding: 4, textAlign: "right" }}>{c.emitidos}</td>
-                        <td style={{ padding: 4, textAlign: "right" }}>{c.anulados}</td>
-                        <td style={{ padding: 4, textAlign: "right" }}>{c.tipo === 7 ? "-" : formatMoney(c.total)}</td>
+                      <tr key={c.tipo} style={{ borderBottom: "1px solid var(--surface-border)" }}>
+                        <td style={{ padding: 4, verticalAlign: "top" }}>{nombreTipoDocumento(c.tipo)}</td>
+                        <td style={{ padding: 4, textAlign: "right", verticalAlign: "top" }}>{c.emitidos}</td>
+                        <td style={{ padding: 4, textAlign: "right", verticalAlign: "top" }}>{c.anulados}</td>
+                        <td style={{ padding: 4, textAlign: "right" }}>
+                          {c.tipo === 7 ? "-" : <Totales montos={c.totales} />}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -192,52 +228,70 @@ export default function CierreCajaPage() {
 
         <div className="col-12 md:col-6">
           <div className="surface-card border-1 surface-border border-round p-3 h-full">
-            <div className="font-semibold mb-2">Arqueo de efectivo</div>
-            <div className="flex justify-content-between py-1">
-              <span className="text-color-secondary">Efectivo esperado</span>
-              <span className="text-xl font-bold">{formatMoney(resumen.efectivoEsperado)}</span>
-            </div>
+            <div className="font-semibold mb-1">Arqueo de efectivo</div>
             <small className="text-color-secondary">
-              Apertura + ventas y cobros en efectivo − salidas en efectivo.
+              Cada moneda se cuenta por separado. Guaraníes: apertura + ventas y cobros en efectivo − salidas en efectivo.
             </small>
+
+            {resumen.arqueo.map((a) => {
+              const diferencia = cerrada ? a.diferencia : diferenciaDe(a.moneda, a.efectivoEsperado);
+              const decimales = decimalesMoneda(a.moneda);
+              return (
+                <div key={a.moneda} className="mt-3 pt-2" style={{ borderTop: "1px solid var(--surface-border)" }}>
+                  <div className="flex justify-content-between align-items-center">
+                    <span className="font-semibold">{a.moneda}</span>
+                    <span>
+                      <span className="text-color-secondary mr-2">Esperado</span>
+                      <span className="text-lg font-bold">{formatMonto(a.efectivoEsperado, a.moneda)}</span>
+                    </span>
+                  </div>
+
+                  {cerrada ? (
+                    <div className="flex justify-content-between py-1">
+                      <span className="text-color-secondary">Contado</span>
+                      <span className="font-bold">{a.montoContado == null ? "-" : formatMonto(a.montoContado, a.moneda)}</span>
+                    </div>
+                  ) : (
+                    <>
+                      <label className="block mt-2">Efectivo contado en {a.moneda}</label>
+                      <InputNumber
+                        className="w-full"
+                        inputClassName="w-full"
+                        value={contado[a.moneda] ?? null}
+                        min={0}
+                        locale="es-PY"
+                        prefix={prefijoMoneda(a.moneda)}
+                        minFractionDigits={decimales}
+                        maxFractionDigits={decimales}
+                        onValueChange={(e) => setContado((prev) => ({ ...prev, [a.moneda]: e.value ?? null }))}
+                      />
+                    </>
+                  )}
+
+                  {diferencia != null && (
+                    <div className="flex justify-content-between py-1">
+                      <span className="text-color-secondary">
+                        {diferencia < 0 ? "Faltante" : diferencia > 0 ? "Sobrante" : "Cuadra"}
+                      </span>
+                      <span className="font-bold" style={{ color: diferencia < 0 ? "#dc2626" : "#16a34a" }}>
+                        {formatMonto(Math.abs(diferencia), a.moneda)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
 
             {cerrada ? (
               <>
-                <div className="flex justify-content-between py-1 mt-3">
-                  <span className="text-color-secondary">Efectivo contado</span>
-                  <span className="font-bold">{formatMoney(resumen.montoCierre)}</span>
-                </div>
-                <div className="flex justify-content-between py-1">
-                  <span className="text-color-secondary">Diferencia</span>
-                  <span className="font-bold" style={{ color: (resumen.diferencia ?? 0) < 0 ? "#dc2626" : "#16a34a" }}>
-                    {formatMoney(resumen.diferencia)}
-                  </span>
-                </div>
-                {resumen.observacionCierre && <p className="mb-0"><small>{resumen.observacionCierre}</small></p>}
+                {resumen.observacionCierre && <p className="mb-0 mt-3"><small>{resumen.observacionCierre}</small></p>}
                 <Button className="w-full mt-3" label="Abrir nueva caja" icon="pi pi-play-circle" outlined onClick={() => navigate("/apertura-caja")} />
               </>
             ) : (
               <>
-                <label className="block mt-3">Efectivo contado</label>
-                <InputNumber
-                  className="w-full"
-                  inputClassName="w-full"
-                  value={montoContado}
-                  min={0}
-                  locale="es-PY"
-                  prefix="Gs. "
-                  onValueChange={(e) => setMontoContado(e.value ?? null)}
-                />
-                {diferencia != null && (
-                  <div className="flex justify-content-between py-2">
-                    <span className="text-color-secondary">{diferencia < 0 ? "Faltante" : diferencia > 0 ? "Sobrante" : "Cuadra"}</span>
-                    <span className="font-bold" style={{ color: diferencia < 0 ? "#dc2626" : "#16a34a" }}>
-                      {formatMoney(Math.abs(diferencia))}
-                    </span>
-                  </div>
-                )}
-                <label className="block mt-2">Observación (opcional)</label>
+                <label className="block mt-3">Observación (opcional)</label>
                 <InputTextarea className="w-full" rows={2} value={observacion} onChange={(e) => setObservacion(e.target.value)} />
+                {puede("CIERRE_CAJA", "CERRAR") && (
                 <Button
                   className="w-full mt-3"
                   label="Cerrar caja"
@@ -246,6 +300,7 @@ export default function CierreCajaPage() {
                   loading={cerrando}
                   onClick={cerrar}
                 />
+                )}
               </>
             )}
           </div>

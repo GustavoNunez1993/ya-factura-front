@@ -14,6 +14,7 @@ import { Tag } from "primereact/tag";
 
 import { CondicionVentaService, type CondicionVenta } from "../../services/CondicionVentaService";
 import { useIsMobile } from "../../hooks/useIsMobile";
+import { usePermisos } from "../../hooks/usePermisos";
 
 interface CondicionVentaForm {
   id?: string;
@@ -54,6 +55,8 @@ const opcionesSiNo = [
 ];
 
 export default function CondicionesVentaPage() {
+    // Botones según el rol (el back valida igual cada acción).
+    const { puede } = usePermisos();
   const [condiciones, setCondiciones] = useState<CondicionVenta[]>([]);
   const [total, setTotal] = useState(0);
 
@@ -202,8 +205,12 @@ export default function CondicionesVentaPage() {
   const accionesTemplate = (rowData: CondicionVenta) => (
     <div className="flex gap-2 justify-content-center">
       <Button icon="pi pi-eye" rounded text severity="info" tooltip="Ver" onClick={() => ver(rowData)} />
+      {puede("CONDICIONES_VENTA", "EDITAR") && (
       <Button icon="pi pi-pencil" rounded text severity="warning" tooltip="Editar" onClick={() => editar(rowData)} />
+      )}
+      {puede("CONDICIONES_VENTA", "ELIMINAR") && (
       <Button icon="pi pi-trash" rounded text severity="danger" tooltip="Eliminar" onClick={() => eliminar(rowData.id)} />
+      )}
     </div>
   );
 
@@ -214,7 +221,9 @@ export default function CondicionesVentaPage() {
           <h2 className="m-0">Condiciones de Venta</h2>
           <small className="text-color-secondary">Contado, crédito y sus condiciones de plazo/cuotas usadas en Facturación</small>
         </div>
+        {puede("CONDICIONES_VENTA", "CREAR") && (
         <Button label="Nueva Condición" icon="pi pi-plus" severity="success" onClick={abrirNuevo} />
+        )}
       </div>
 
       {isMobile ? (

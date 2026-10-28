@@ -8,6 +8,7 @@ import { ThemeProvider } from "./context/ThemeContext";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 import "primeflex/primeflex.css";
+import "./primeflex-compat.css";
 import "./swal-overrides.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(

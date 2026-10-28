@@ -18,6 +18,8 @@ import { PaisService } from "../../services/PaisService";
 import { DepartamentoService } from "../../services/DepartamentoService";
 import { DistritoService } from "../../services/DistritoService";
 import { CiudadesService } from "../../services/CiudadesService";
+import { EVENTO_EMPRESA_ACTUALIZADA } from "../../hooks/useUsaCaja";
+import { usePermisos } from "../../hooks/usePermisos";
 
 interface Opcion {
   id: string;
@@ -27,6 +29,25 @@ interface Opcion {
 const TIPOS_CONTRIBUYENTE = [
   { label: "1 - Persona Física", value: 1 },
   { label: "2 - Persona Jurídica", value: 2 }
+];
+
+/** Cómo se controla la apertura de caja para emitir (ModoControlCaja en el back). */
+const MODOS_CONTROL_CAJA = [
+  {
+    label: "Por fecha",
+    value: "POR_FECHA",
+    detalle: "Hace falta una caja abierta con fecha de hoy. Si quedó abierta la de otro día, hay que cerrarla y abrir la del día."
+  },
+  {
+    label: "Solo caja abierta",
+    value: "CAJA_ABIERTA",
+    detalle: "Alcanza con que haya una caja abierta, sin importar de qué fecha sea."
+  },
+  {
+    label: "Sin apertura y cierre de caja",
+    value: "SIN_CAJA",
+    detalle: "Se emite sin caja. Los cobros se registran igual, pero no hay arqueo ni cierre."
+  }
 ];
 
 const AMBIENTES_SIFEN = [
@@ -49,6 +70,8 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const mensajeDeError = (error: any, porDefecto: string) => error?.response?.data?.message || porDefecto;
 
 export default function EmpresaConfigPage() {
+  // Acciones según el rol (el back valida igual cada una).
+  const { puede } = usePermisos();
   const empresaId = localStorage.getItem("empresaId") || "";
 
   const [loading, setLoading] = useState(true);
@@ -74,6 +97,7 @@ export default function EmpresaConfigPage() {
   const [ambienteSifen, setAmbienteSifen] = useState<string | null>("TEST");
   const [firmadorCertificadoId, setFirmadorCertificadoId] = useState("");
   const [envioAutomaticoSifen, setEnvioAutomaticoSifen] = useState(false);
+  const [modoControlCaja, setModoControlCaja] = useState("CAJA_ABIERTA");
 
   const [actividades, setActividades] = useState<ActividadEconomica[]>([]);
   const [nuevoCodigo, setNuevoCodigo] = useState("");
@@ -107,6 +131,7 @@ export default function EmpresaConfigPage() {
         setAmbienteSifen(data.ambienteSifen ?? "TEST");
         setFirmadorCertificadoId(data.firmadorCertificadoId ?? "");
         setEnvioAutomaticoSifen(data.envioAutomaticoSifen ?? false);
+        setModoControlCaja(data.modoControlCaja ?? "CAJA_ABIERTA");
 
         const ciudad = data.ciudad ?? null;
         const distrito = ciudad?.distrito ?? null;
@@ -210,10 +235,13 @@ export default function EmpresaConfigPage() {
         firmadorTenantId: firmadorTenantId.trim() || null,
         ambienteSifen,
         firmadorCertificadoId: firmadorCertificadoId.trim() || null,
-        envioAutomaticoSifen
+        envioAutomaticoSifen,
+        modoControlCaja
       });
 
       Swal.fire("Listo", "Datos de la empresa actualizados correctamente", "success");
+      // El menú y el Dashboard dependen del control de caja: que se refresquen sin recargar.
+      window.dispatchEvent(new Event(EVENTO_EMPRESA_ACTUALIZADA));
     } catch (error: any) {
       console.error(error);
       Swal.fire("Error", mensajeDeError(error, "No se pudo guardar la información de la empresa"), "error");
@@ -275,9 +303,10 @@ export default function EmpresaConfigPage() {
     }
   };
 
-  const accionesActividadTemplate = (rowData: ActividadEconomica) => (
+  const accionesActividadTemplate = (rowData: ActividadEconomica) =>
+    puede("EMPRESA", "EDITAR") ? (
     <Button icon="pi pi-trash" text rounded severity="danger" tooltip="Eliminar" onClick={() => eliminarActividad(rowData.id)} />
-  );
+    ) : null;
 
   if (loading) {
     return <div className="text-color-secondary">Cargando datos de la empresa...</div>;
@@ -472,6 +501,7 @@ export default function EmpresaConfigPage() {
               <InputText className="w-full" maxLength={MAX_DESCRIPCION_ACTIVIDAD} value={nuevaDescripcion} onChange={(e) => setNuevaDescripcion(e.target.value)} />
             </div>
             <div className="col-12 md:col-3 flex align-items-end">
+              {puede("EMPRESA", "EDITAR") && (
               <Button
                 label="Agregar"
                 icon="pi pi-plus"
@@ -480,6 +510,7 @@ export default function EmpresaConfigPage() {
                 onClick={agregarActividad}
                 className="w-full"
               />
+              )}
             </div>
           </div>
         </div>
@@ -536,8 +567,32 @@ export default function EmpresaConfigPage() {
           </div>
         </div>
 
+        <div className="empresa-card p-4">
+          <div className="text-lg font-semibold mb-3">Control de caja</div>
+          <div className="grid">
+            <div className="col-12 md:col-4">
+              <label>Para emitir comprobantes</label>
+              <Dropdown
+                className="w-full"
+                value={modoControlCaja}
+                options={MODOS_CONTROL_CAJA}
+                optionLabel="label"
+                optionValue="value"
+                onChange={(e) => setModoControlCaja(e.value)}
+              />
+            </div>
+            <div className="col-12 md:col-8 flex align-items-end">
+              <small className="text-color-secondary">
+                {MODOS_CONTROL_CAJA.find((m) => m.value === modoControlCaja)?.detalle}
+              </small>
+            </div>
+          </div>
+        </div>
+
         <div>
+          {puede("EMPRESA", "EDITAR") && (
           <Button label="Guardar cambios" icon="pi pi-save" severity="success" loading={guardando} onClick={guardar} />
+          )}
         </div>
       </div>
     </div>

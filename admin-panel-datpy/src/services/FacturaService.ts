@@ -137,17 +137,30 @@ export interface NotaRemisionPayload {
 }
 
 /** GET /facturas/resumen: números del dashboard calculados en el back. */
+/** Monto en una moneda (monedaId: 1 PYG, 2 USD, 3 BRL, 4 EUR). */
+export interface MontoMoneda {
+  monedaId: number;
+  total: number;
+}
+
 export interface ResumenComprobantes {
-  /** Facturas + notas de débito − notas de crédito (sin anulados). */
-  ventasNetas: number;
-  facturado: number;
-  notasCredito: number;
-  notasDebito: number;
-  /** Autofacturas: compras, no ventas. */
-  compras: number;
+  /** Una entrada por moneda con movimiento: no se suman monedas distintas. */
+  porMoneda: {
+    monedaId: number;
+    /** Facturas + notas de débito − notas de crédito (sin anulados). */
+    ventasNetas: number;
+    facturado: number;
+    notasCredito: number;
+    notasDebito: number;
+    /** Autofacturas: compras, no ventas. */
+    compras: number;
+  }[];
+  /** Ventas netas convertidas a guaraníes con la cotización de cada comprobante. */
+  ventasNetasEquivalenteGs: number;
   facturasEmitidas: number;
   documentosEmitidos: number;
-  porTipo: { tipo: number; emitidos: number; anulados: number; total: number }[];
+  porTipo: { tipo: number; emitidos: number; anulados: number; totales: MontoMoneda[] }[];
+  /** ventasNetas en equivalente guaraníes. */
   tendenciaVentas: { anio: number; mes: number; ventasNetas: number }[];
   facturasUltimos7Dias: { fecha: string; facturas: number }[];
 }

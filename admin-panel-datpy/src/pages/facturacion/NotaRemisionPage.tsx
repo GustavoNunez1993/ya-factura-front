@@ -17,7 +17,7 @@ import type { Deposito } from "../../services/DepositoService";
 import { FacturaService } from "../../services/FacturaService";
 import { PersonaService } from "../../services/PersonaService";
 import { ProductosService } from "../../services/ProductosService";
-import { TimbradoService } from "../../services/TimbradoService";
+import { PuntoExpedicionService } from "../../services/PuntoExpedicionService";
 import { NRO_CAJA, verificarCajaAbierta } from "../../utils/caja";
 import { avisarFalloEnvioSifen } from "../../utils/sifen";
 
@@ -184,12 +184,8 @@ export default function NotaRemisionPage() {
 
   useEffect(() => {
     const empresaId = localStorage.getItem("empresaId") ?? "";
-    TimbradoService.listar(empresaId)
-      .then((timbrados) => {
-        const opciones = timbrados
-          .filter((t) => t.activo && t.tipoDocumento === 7)
-          .map((t) => `${t.establecimiento}-${t.puntoExpedicion}`)
-          .map((p) => ({ label: p, value: p }));
+    PuntoExpedicionService.opcionesActivas(empresaId)
+      .then((opciones) => {
         setPuntos(opciones);
         if (opciones.length > 0) setPuntoExpedicion(opciones[0].value);
       })

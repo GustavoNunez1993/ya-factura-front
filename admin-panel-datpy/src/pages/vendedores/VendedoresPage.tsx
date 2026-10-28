@@ -13,6 +13,7 @@ import { VendedorService, type Vendedor } from "../../services/VendedorService";
 import { CargoService, type Cargo } from "../../services/CargoService";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import { countries, defaultCountry, flagEmoji, parsePhoneNumber, type CountryDialCode } from "../../utils/countries";
+import { usePermisos } from "../../hooks/usePermisos";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -26,6 +27,8 @@ const formularioInicial: Vendedor = {
 };
 
 export default function VendedoresPage() {
+    // Botones según el rol (el back valida igual cada acción).
+    const { puede } = usePermisos();
 
   const [vendedores, setVendedores] = useState<Vendedor[]>([]);
   const [cargos, setCargos] = useState<Cargo[]>([]);
@@ -260,6 +263,7 @@ export default function VendedoresPage() {
         tooltip="Ver"
         onClick={() => ver(rowData)}
       />
+      {puede("VENDEDORES", "EDITAR") && (
       <Button
         icon="pi pi-pencil"
         rounded
@@ -268,6 +272,8 @@ export default function VendedoresPage() {
         tooltip="Editar"
         onClick={() => editar(rowData)}
       />
+      )}
+      {puede("VENDEDORES", "ELIMINAR") && (
       <Button
         icon="pi pi-trash"
         rounded
@@ -276,6 +282,7 @@ export default function VendedoresPage() {
         tooltip="Eliminar"
         onClick={() => eliminar(rowData.id)}
       />
+      )}
     </div>
   );
 
@@ -288,7 +295,9 @@ export default function VendedoresPage() {
           <h2 className="m-0">Vendedores</h2>
           <small className="text-color-secondary">Equipo de ventas de la empresa</small>
         </div>
+        {puede("VENDEDORES", "CREAR") && (
         <Button label="Nuevo Vendedor" icon="pi pi-plus" severity="success" onClick={abrirNuevo} />
+        )}
       </div>
 
       <div className="p-input-icon-left mb-3 w-full">

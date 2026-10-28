@@ -1,33 +1,20 @@
 import api from "./api";
 
+/** Timbrado otorgado por la SET. Los puntos de expedición lo eligen; la numeración vive en cada punto. */
 export interface Timbrado {
   id: string;
-  establecimiento: string;
-  puntoExpedicion: string;
-  tipoDocumento: number;
   numeroTimbrado: string;
-  serieActual: string | null;
-  ultimoNumeroUsado: number;
+  /** yyyy-MM-dd: viaja en el XML como dFeIniT. */
+  fechaInicioVigencia: string;
   activo: boolean;
+  /** Cantidad de puntos de expedición que emiten con este timbrado. */
+  puntosExpedicion: number;
 }
 
 export interface TimbradoPayload {
-  empresaId: string;
-  establecimiento: string;
-  puntoExpedicion: string;
-  tipoDocumento: number;
-  numeroTimbrado: string;
-}
-
-export interface InutilizarPayload {
-  numeroHasta: number;
-  motivo: string;
-}
-
-export interface EventoInutilizacionResultado {
-  estado: string | null;
-  codigoRespuesta: string | null;
-  mensajeRespuesta: string | null;
+  empresaId?: string;
+  numeroTimbrado?: string;
+  fechaInicioVigencia: string;
 }
 
 export const TimbradoService = {
@@ -41,13 +28,14 @@ export const TimbradoService = {
     return res.data;
   },
 
-  async desactivar(id: string) {
-    const res = await api.patch(`/timbrados/${id}/desactivar`);
+  /** Sólo la fecha de inicio de vigencia: el número no se edita. */
+  async actualizar(id: string, payload: TimbradoPayload): Promise<Timbrado> {
+    const res = await api.put(`/timbrados/${id}`, payload);
     return res.data;
   },
 
-  async inutilizar(id: string, payload: InutilizarPayload): Promise<EventoInutilizacionResultado> {
-    const res = await api.post(`/timbrados/${id}/inutilizar`, payload);
+  async cambiarEstado(id: string, activo: boolean): Promise<Timbrado> {
+    const res = await api.patch(`/timbrados/${id}/${activo ? "activar" : "desactivar"}`);
     return res.data;
   }
 };

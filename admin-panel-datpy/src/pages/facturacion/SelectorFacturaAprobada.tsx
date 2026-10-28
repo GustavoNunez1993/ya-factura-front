@@ -23,6 +23,8 @@ export interface FacturaAprobada {
   total: number;
   saldo: number;
   esContado: boolean;
+  /** Moneda de la factura (1 PYG, 2 USD, 3 BRL, 4 EUR): la NC/ND se emite en la misma. */
+  monedaId: number;
   detalles: DetalleFacturaAprobada[];
 }
 
@@ -54,6 +56,7 @@ async function cargarFactura(id: string): Promise<FacturaAprobada> {
     total: Number(f.total ?? 0),
     saldo: Number(f.saldo ?? 0),
     esContado: (f.condicionOperacionId ?? 1) === 1,
+    monedaId: Number(f.monedaId ?? 1),
     detalles: (f.detalles ?? []).map((d: Record<string, unknown>) => ({
       id: String(d.id),
       codigo: d.codigo as string | undefined,

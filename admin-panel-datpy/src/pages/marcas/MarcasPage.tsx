@@ -10,6 +10,7 @@ import { Column } from "primereact/column";
 
 import { MarcaService } from "../../services/MarcasService";
 import { useIsMobile } from "../../hooks/useIsMobile";
+import { usePermisos } from "../../hooks/usePermisos";
 
 interface Marca {
   id?: string;
@@ -18,6 +19,8 @@ interface Marca {
 }
 
 export default function MarcasPage() {
+    // Botones según el rol (el back valida igual cada acción).
+    const { puede } = usePermisos();
 
   const [Marcas, setMarcas] = useState<Marca[]>([]);
   const [total, setTotal] = useState(0);
@@ -202,6 +205,7 @@ export default function MarcasPage() {
           onClick={() => ver(rowData)}
         />
 
+        {puede("MARCAS", "EDITAR") && (
         <Button
           icon="pi pi-pencil"
           rounded
@@ -210,7 +214,9 @@ export default function MarcasPage() {
           tooltip="Editar"
           onClick={() => editar(rowData)}
         />
+        )}
 
+        {puede("MARCAS", "ELIMINAR") && (
         <Button
           icon="pi pi-trash"
           rounded
@@ -219,6 +225,7 @@ export default function MarcasPage() {
           tooltip="Eliminar"
           onClick={() => eliminar(rowData.id)}
         />
+        )}
 
       </div>
 
@@ -236,7 +243,9 @@ export default function MarcasPage() {
           <h2 className="m-0">Marcas</h2>
           <small className="text-color-secondary">Catálogo de Marcas de productos</small>
         </div>
+        {puede("MARCAS", "CREAR") && (
         <Button label="Nueva Marca" icon="pi pi-plus" severity="success" onClick={abrirNuevo} />
+        )}
       </div>
 
       <div className="p-input-icon-left mb-3 w-full">

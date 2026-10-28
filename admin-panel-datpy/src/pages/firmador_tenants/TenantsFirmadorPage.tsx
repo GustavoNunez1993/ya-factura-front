@@ -11,6 +11,7 @@ import { DataTable } from "primereact/datatable";
 import { Column } from "primereact/column";
 import { Tag } from "primereact/tag";
 import { TabView, TabPanel } from "primereact/tabview";
+import { usePermisos } from "../../hooks/usePermisos";
 
 import {
   FirmadorTenantService,
@@ -90,9 +91,15 @@ const idCopiable = (id: string) => (
   </div>
 );
 
+type ErrorApi = { response?: { data?: { message?: string } } };
+
 export default function TenantsFirmadorPage() {
+  // Acciones según el rol (el back valida igual cada una).
+  const { puede } = usePermisos();
   const [tenants, setTenants] = useState<FirmadorTenant[]>([]);
   const [loading, setLoading] = useState(false);
+  // Si falla la carga se muestra el motivo, no una tabla vacía que parece "sin tenants".
+  const [errorCarga, setErrorCarga] = useState<string | null>(null);
 
   const [open, setOpen] = useState(false);
   const [guardando, setGuardando] = useState(false);
@@ -115,11 +122,13 @@ export default function TenantsFirmadorPage() {
   const cargarTenants = async () => {
     try {
       setLoading(true);
+      setErrorCarga(null);
       const res = await FirmadorTenantService.listar();
       setTenants(res?.content ?? []);
     } catch (error) {
       console.error("Error cargando tenants", error);
       setTenants([]);
+      setErrorCarga((error as ErrorApi)?.response?.data?.message ?? "No se pudo conectar con el servidor.");
     } finally {
       setLoading(false);
     }
@@ -160,9 +169,9 @@ export default function TenantsFirmadorPage() {
 
       setOpen(false);
       cargarTenants();
-    } catch (error: any) {
+    } catch (error) {
       console.error(error);
-      const mensaje = error?.response?.data?.message ?? "No se pudo crear el tenant";
+      const mensaje = (error as ErrorApi)?.response?.data?.message ?? "No se pudo crear el tenant";
       Swal.fire("Error", mensaje, "error");
     } finally {
       setGuardando(false);
@@ -248,10 +257,10 @@ export default function TenantsFirmadorPage() {
 
       cancelarEdicionAmbiente();
       await cargarAmbientes(selectedTenant.id);
-    } catch (error: any) {
+    } catch (error) {
       console.error(error);
       const mensaje =
-        error?.response?.data?.message ?? (ambienteEditando ? "No se pudo actualizar el ambiente" : "No se pudo crear el ambiente");
+        (error as ErrorApi)?.response?.data?.message ?? (ambienteEditando ? "No se pudo actualizar el ambiente" : "No se pudo crear el ambiente");
       Swal.fire("Error", mensaje, "error");
     } finally {
       setGuardandoAmbiente(false);
@@ -297,9 +306,9 @@ export default function TenantsFirmadorPage() {
       setCertificadoForm(certificadoFormVacio);
       setArchivoCertificado(null);
       await cargarCertificados(selectedTenant.id);
-    } catch (error: any) {
+    } catch (error) {
       console.error(error);
-      const mensaje = error?.response?.data?.message ?? "No se pudo subir el certificado";
+      const mensaje = (error as ErrorApi)?.response?.data?.message ?? "No se pudo subir el certificado";
       Swal.fire("Error", mensaje, "error");
     } finally {
       setSubiendoCertificado(false);
@@ -340,18 +349,19 @@ export default function TenantsFirmadorPage() {
       <Tag value="Sin CSC" severity="warning" icon="pi pi-exclamation-triangle" />
     );
 
-  const accionesAmbienteTemplate = (rowData: FirmadorAmbiente) => (
-    <Button icon="pi pi-pencil" text rounded size="small" tooltip="Editar ambiente" onClick={() => editarAmbiente(rowData)} />
-  );
+  const accionesAmbienteTemplate = (rowData: FirmadorAmbiente) =>
+    puede("FIRMADOR_TENANTS", "EDITAR") ? (
+      <Button icon="pi pi-pencil" text rounded size="small" tooltip="Editar ambiente" onClick={() => editarAmbiente(rowData)} />
+    ) : null;
 
   const idCertificadoTemplate = (rowData: FirmadorCertificado) => idCopiable(rowData.id);
 
   const predeterminadoCertificadoTemplate = (rowData: FirmadorCertificado) =>
     rowData.predeterminado ? (
       <Tag value="Predeterminado" severity="info" icon="pi pi-star-fill" />
-    ) : (
+    ) : puede("FIRMADOR_TENANTS", "EDITAR") ? (
       <Button label="Marcar predeterminado" text size="small" onClick={() => marcarPredeterminado(rowData)} />
-    );
+    ) : null;
 
   const validezCertificadoTemplate = (rowData: FirmadorCertificado) => {
     if (!rowData.validTo) return "-";
@@ -367,10 +377,24 @@ export default function TenantsFirmadorPage() {
             Alta de tenants, ambientes SIFEN y certificados en firmador-xml — los IDs resultantes se usan en Datos de la empresa
           </small>
         </div>
+        {puede("FIRMADOR_TENANTS", "CREAR") && (
         <Button label="Nuevo Tenant" icon="pi pi-plus" severity="success" onClick={abrirNuevo} />
+        )}
       </div>
 
-      <DataTable value={tenants} loading={loading} size="small" stripedRows showGridlines emptyMessage="No hay tenants registrados">
+      <DataTable value={tenants} loading={loading} size="small" stripedRows showGridlines emptyMessage={
+          errorCarga ? (
+            <div className="flex align-items-center gap-3">
+              <span className="text-red-500">
+                <i className="pi pi-exclamation-triangle mr-2" />
+                No se pudieron cargar los tenants: {errorCarga}
+              </span>
+              <Button label="Reintentar" icon="pi pi-refresh" size="small" outlined onClick={cargarTenants} />
+            </div>
+          ) : (
+            "No hay tenants registrados"
+          )
+        }>
         <Column field="codigo" header="Código" />
         <Column field="razonSocial" header="Razón Social" />
         <Column field="ruc" header="RUC" />
@@ -515,6 +539,7 @@ export default function TenantsFirmadorPage() {
             </div>
 
             <div className="flex gap-2 mt-2">
+              {(puede("FIRMADOR_TENANTS", "CREAR") || puede("FIRMADOR_TENANTS", "EDITAR")) && (
               <Button
                 label={ambienteEditando ? "Guardar Cambios" : "Agregar Ambiente"}
                 icon={ambienteEditando ? "pi pi-check" : "pi pi-plus"}
@@ -522,6 +547,7 @@ export default function TenantsFirmadorPage() {
                 loading={guardandoAmbiente}
                 onClick={guardarAmbiente}
               />
+              )}
               {ambienteEditando && <Button label="Cancelar" severity="secondary" onClick={cancelarEdicionAmbiente} />}
             </div>
           </TabPanel>
@@ -579,6 +605,7 @@ export default function TenantsFirmadorPage() {
 
               <div className="col-6">
                 <input ref={fileInputRef} type="file" accept=".p12,.pfx" style={{ display: "none" }} onChange={onArchivoSeleccionado} />
+                {puede("FIRMADOR_TENANTS", "CREAR") && (
                 <Button
                   label={archivoCertificado ? archivoCertificado.name : "Seleccionar archivo .p12"}
                   icon="pi pi-upload"
@@ -587,9 +614,11 @@ export default function TenantsFirmadorPage() {
                   className="w-full"
                   onClick={seleccionarArchivo}
                 />
+                )}
               </div>
             </div>
 
+            {puede("FIRMADOR_TENANTS", "CREAR") && (
             <Button
               label="Subir Certificado"
               icon="pi pi-upload"
@@ -598,6 +627,7 @@ export default function TenantsFirmadorPage() {
               onClick={subirCertificado}
               className="mt-2"
             />
+            )}
           </TabPanel>
         </TabView>
       </Dialog>

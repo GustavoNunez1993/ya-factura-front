@@ -10,6 +10,7 @@ import { Column } from "primereact/column";
 
 import { FamiliaService } from "../../services/FamiliaService";
 import { useIsMobile } from "../../hooks/useIsMobile";
+import { usePermisos } from "../../hooks/usePermisos";
 
 interface Familia {
   id?: string;
@@ -18,6 +19,8 @@ interface Familia {
 }
 
 export default function FamiliasPage() {
+    // Botones según el rol (el back valida igual cada acción).
+    const { puede } = usePermisos();
 
   const [familias, setFamilias] = useState<Familia[]>([]);
   const [total, setTotal] = useState(0);
@@ -202,6 +205,7 @@ export default function FamiliasPage() {
           onClick={() => ver(rowData)}
         />
 
+        {puede("FAMILIAS", "EDITAR") && (
         <Button
           icon="pi pi-pencil"
           rounded
@@ -210,7 +214,9 @@ export default function FamiliasPage() {
           tooltip="Editar"
           onClick={() => editar(rowData)}
         />
+        )}
 
+        {puede("FAMILIAS", "ELIMINAR") && (
         <Button
           icon="pi pi-trash"
           rounded
@@ -219,6 +225,7 @@ export default function FamiliasPage() {
           tooltip="Eliminar"
           onClick={() => eliminar(rowData.id)}
         />
+        )}
 
       </div>
 
@@ -236,7 +243,9 @@ export default function FamiliasPage() {
           <h2 className="m-0">Familias</h2>
           <small className="text-color-secondary">Catálogo de familias de productos</small>
         </div>
+        {puede("FAMILIAS", "CREAR") && (
         <Button label="Nueva Familia" icon="pi pi-plus" severity="success" onClick={abrirNuevo} />
+        )}
       </div>
 
       <div className="p-input-icon-left mb-3 w-full">

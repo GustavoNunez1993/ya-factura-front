@@ -15,6 +15,7 @@ import { ProductosService } from "../../services/ProductosService";
 import { NRO_CAJA, verificarCajaAbierta } from "../../utils/caja";
 import type { FacturaAprobada } from "./SelectorFacturaAprobada";
 import SelectorFacturaAprobada from "./SelectorFacturaAprobada";
+import { decimalesMoneda, codigoMoneda, formatMonto, prefijoMoneda } from "../../utils/moneda";
 import { avisarFalloEnvioSifen } from "../../utils/sifen";
 
 interface ProductoOpcion {
@@ -39,8 +40,6 @@ const motivos = Object.entries(MOTIVOS_NOTA_CREDITO).map(([value, label]) => ({
 
 const cargoVacio = (): Cargo => ({ producto: null, cantidad: 1, precioUnitario: null, dInfItem: "" });
 
-const formatMoney = (value: number) =>
-  new Intl.NumberFormat("es-PY", { style: "currency", currency: "PYG", maximumFractionDigits: 0 }).format(value || 0);
 
 /**
  * Alta de una Nota de Débito Electrónica (iTiDE=6) sobre una factura aprobada por SIFEN:
@@ -52,6 +51,9 @@ export default function NotaDebitoPage() {
   const [searchParams] = useSearchParams();
 
   const [factura, setFactura] = useState<FacturaAprobada | null>(null);
+  // La nota va en la moneda de la factura que corrige: montos, prefijos y decimales salen de ahí.
+  const formatMoney = (value: number) => formatMonto(value, factura?.monedaId);
+  const decimalesFactura = decimalesMoneda(codigoMoneda(factura?.monedaId));
   const [motivo, setMotivo] = useState<number>(8);
   const [infAdic, setInfAdic] = useState("");
   const [cargos, setCargos] = useState<Cargo[]>([cargoVacio()]);
@@ -192,8 +194,9 @@ export default function NotaDebitoPage() {
                 <InputNumber
                   value={c.precioUnitario}
                   min={0}
-                  maxFractionDigits={0}
-                  prefix="Gs. "
+                  minFractionDigits={decimalesFactura}
+                  maxFractionDigits={decimalesFactura}
+                  prefix={prefijoMoneda(factura?.monedaId)}
                   inputStyle={{ width: "100%" }}
                   onValueChange={(e) => actualizarCargo(i, { precioUnitario: e.value ?? null })}
                 />

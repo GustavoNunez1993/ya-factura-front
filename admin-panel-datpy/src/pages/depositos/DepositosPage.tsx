@@ -12,6 +12,7 @@ import { Tag } from "primereact/tag";
 
 import { DepositoService, type Deposito } from "../../services/DepositoService";
 import { useIsMobile } from "../../hooks/useIsMobile";
+import { usePermisos } from "../../hooks/usePermisos";
 
 interface DepositoForm {
   id?: string;
@@ -23,6 +24,8 @@ interface DepositoForm {
 const formVacio: DepositoForm = { nombre: "", direccion: "", esPrincipal: false };
 
 export default function DepositosPage() {
+    // Botones según el rol (el back valida igual cada acción).
+    const { puede } = usePermisos();
   const [depositos, setDepositos] = useState<Deposito[]>([]);
   const [total, setTotal] = useState(0);
 
@@ -130,8 +133,12 @@ export default function DepositosPage() {
   const accionesTemplate = (rowData: Deposito) => (
     <div className="flex gap-2 justify-content-center">
       <Button icon="pi pi-eye" rounded text severity="info" tooltip="Ver" onClick={() => ver(rowData)} />
+      {puede("DEPOSITOS", "EDITAR") && (
       <Button icon="pi pi-pencil" rounded text severity="warning" tooltip="Editar" onClick={() => editar(rowData)} />
+      )}
+      {puede("DEPOSITOS", "ELIMINAR") && (
       <Button icon="pi pi-trash" rounded text severity="danger" tooltip="Eliminar" onClick={() => eliminar(rowData.id)} />
+      )}
     </div>
   );
 
@@ -142,7 +149,9 @@ export default function DepositosPage() {
           <h2 className="m-0">Depósitos</h2>
           <small className="text-color-secondary">Almacenes y sucursales donde se guarda el stock</small>
         </div>
+        {puede("DEPOSITOS", "CREAR") && (
         <Button label="Nuevo Depósito" icon="pi pi-plus" severity="success" onClick={abrirNuevo} />
+        )}
       </div>
 
       {isMobile ? (

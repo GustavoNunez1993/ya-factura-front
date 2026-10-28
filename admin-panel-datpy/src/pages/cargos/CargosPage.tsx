@@ -10,6 +10,7 @@ import { Column } from "primereact/column";
 
 import { CargoService, type Cargo } from "../../services/CargoService";
 import { useIsMobile } from "../../hooks/useIsMobile";
+import { usePermisos } from "../../hooks/usePermisos";
 
 const formularioInicial: Cargo = {
   codigo: "",
@@ -17,6 +18,8 @@ const formularioInicial: Cargo = {
 };
 
 export default function CargosPage() {
+    // Botones según el rol (el back valida igual cada acción).
+    const { puede } = usePermisos();
 
   const [cargos, setCargos] = useState<Cargo[]>([]);
   const [search, setSearch] = useState("");
@@ -189,6 +192,7 @@ export default function CargosPage() {
         tooltip="Ver"
         onClick={() => ver(rowData)}
       />
+      {puede("CARGOS", "EDITAR") && (
       <Button
         icon="pi pi-pencil"
         rounded
@@ -197,6 +201,8 @@ export default function CargosPage() {
         tooltip="Editar"
         onClick={() => editar(rowData)}
       />
+      )}
+      {puede("CARGOS", "ELIMINAR") && (
       <Button
         icon="pi pi-trash"
         rounded
@@ -205,6 +211,7 @@ export default function CargosPage() {
         tooltip="Eliminar"
         onClick={() => eliminar(rowData.id)}
       />
+      )}
     </div>
   );
 
@@ -217,7 +224,9 @@ export default function CargosPage() {
           <h2 className="m-0">Cargos</h2>
           <small className="text-color-secondary">Puestos del equipo de ventas</small>
         </div>
+        {puede("CARGOS", "CREAR") && (
         <Button label="Nuevo Cargo" icon="pi pi-plus" severity="success" onClick={abrirNuevo} />
+        )}
       </div>
 
       <div className="p-input-icon-left mb-3 w-full">

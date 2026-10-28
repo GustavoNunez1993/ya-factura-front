@@ -12,6 +12,7 @@ import { Tag } from "primereact/tag";
 
 import { StockService, type StockTransferencia } from "../../services/StockService";
 import { useIsMobile } from "../../hooks/useIsMobile";
+import { usePermisos } from "../../hooks/usePermisos";
 
 const obtenerMensajeError = (error: any, fallback: string) => {
   const data = error?.response?.data;
@@ -48,6 +49,8 @@ const severidadEstado = (estado: string): "warning" | "success" | "danger" => {
 };
 
 export default function TransferenciasPage() {
+  // Acciones según el rol (el back valida igual cada una).
+  const { puede } = usePermisos();
   const navigate = useNavigate();
 
   const [transferencias, setTransferencias] = useState<StockTransferencia[]>([]);
@@ -168,6 +171,7 @@ export default function TransferenciasPage() {
 
       {rowData.estado === "PENDIENTE" && (
         <>
+          {puede("TRANSFERENCIAS", "APROBAR") && (
           <Button
             icon="pi pi-check"
             rounded
@@ -177,6 +181,8 @@ export default function TransferenciasPage() {
             loading={procesandoId === rowData.id}
             onClick={() => aprobar(rowData)}
           />
+          )}
+          {puede("TRANSFERENCIAS", "APROBAR") && (
           <Button
             icon="pi pi-times"
             rounded
@@ -186,6 +192,7 @@ export default function TransferenciasPage() {
             loading={procesandoId === rowData.id}
             onClick={() => rechazar(rowData)}
           />
+          )}
         </>
       )}
     </div>
@@ -343,6 +350,7 @@ export default function TransferenciasPage() {
         <div className="flex justify-content-end gap-2 mt-4">
           {detalleItem?.estado === "PENDIENTE" && (
             <>
+              {puede("TRANSFERENCIAS", "APROBAR") && (
               <Button
                 label="Rechazar"
                 icon="pi pi-times"
@@ -351,6 +359,8 @@ export default function TransferenciasPage() {
                 loading={procesandoId === detalleItem.id}
                 onClick={() => { setDetalleOpen(false); rechazar(detalleItem); }}
               />
+              )}
+              {puede("TRANSFERENCIAS", "APROBAR") && (
               <Button
                 label="Aprobar"
                 icon="pi pi-check"
@@ -358,6 +368,7 @@ export default function TransferenciasPage() {
                 loading={procesandoId === detalleItem.id}
                 onClick={() => { setDetalleOpen(false); aprobar(detalleItem); }}
               />
+              )}
             </>
           )}
           <Button label="Cerrar" severity="secondary" outlined onClick={() => setDetalleOpen(false)} />

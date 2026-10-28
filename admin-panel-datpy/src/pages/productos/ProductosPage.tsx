@@ -17,6 +17,7 @@ import { SubFamiliaService } from "../../services/SubFamiliaService";
 import { AfectacionIvaService } from "../../services/AfectacionIvaService";
 import { InputTextarea } from "primereact/inputtextarea";
 import { resolveAssetUrl } from "../../services/api";
+import { usePermisos } from "../../hooks/usePermisos";
 
 interface ProductoImagen {
     id?: string;
@@ -55,6 +56,8 @@ interface Opcion {
 }
 
 export default function ProductosPage() {
+    // Botones según el rol (el back valida igual cada acción).
+    const { puede } = usePermisos();
     const empresaId = localStorage.getItem("empresaId") || "";
 
     const crearFormularioInicial = (): Producto => ({
@@ -382,6 +385,7 @@ export default function ProductosPage() {
                     onClick={() => ver(rowData)}
                 />
 
+                {puede("PRODUCTOS", "EDITAR") && (
                 <Button
                     icon="pi pi-pencil"
                     rounded
@@ -390,7 +394,9 @@ export default function ProductosPage() {
                     tooltip="Editar"
                     onClick={() => editar(rowData)}
                 />
+                )}
 
+                {puede("PRODUCTOS", "ELIMINAR") && (
                 <Button
                     icon="pi pi-trash"
                     rounded
@@ -399,6 +405,7 @@ export default function ProductosPage() {
                     tooltip="Eliminar"
                     onClick={() => eliminar(rowData.id)}
                 />
+                )}
             </div>
         );
     };
@@ -578,12 +585,14 @@ export default function ProductosPage() {
                     </small>
                 </div>
 
+                {puede("PRODUCTOS", "CREAR") && (
                 <Button
                     label="Nuevo Producto"
                     icon="pi pi-plus"
                     severity="success"
                     onClick={abrirNuevo}
                 />
+                )}
             </div>
 
             <div className="p-input-icon-left mb-3 w-full">

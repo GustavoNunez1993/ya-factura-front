@@ -31,6 +31,9 @@ import DepositosPage from "./pages/depositos/DepositosPage";
 import MantenimientoPage from "./pages/MantenimientoPage";
 import PerfilPage from "./pages/perfil/PerfilPage";
 import TimbradosPage from "./pages/timbrados/TimbradosPage";
+import RolesPage from "./pages/seguridad/RolesPage";
+import UsuariosPage from "./pages/seguridad/UsuariosPage";
+import PuntosExpedicionPage from "./pages/puntos_expedicion/PuntosExpedicionPage";
 import EmpresaConfigPage from "./pages/empresa/EmpresaConfigPage";
 import CotizacionesPage from "./pages/cotizaciones/CotizacionesPage";
 import TenantsFirmadorPage from "./pages/firmador_tenants/TenantsFirmadorPage";
@@ -149,10 +152,13 @@ function App() {
           <Route path="/cargos" element={<CargosPage />} />
           <Route path="/condiciones-venta" element={<CondicionesVentaPage />} />
           <Route path="/timbrados" element={<TimbradosPage />} />
+          <Route path="/puntos-expedicion" element={<PuntosExpedicionPage />} />
           <Route path="/empresa" element={<EmpresaConfigPage />} />
           <Route path="/cotizaciones" element={<CotizacionesPage />} />
           <Route path="/firmador-tenants" element={<TenantsFirmadorPage />} />
           <Route path="/perfil" element={<PerfilPage />} />
+          <Route path="/usuarios" element={<UsuariosPage />} />
+          <Route path="/roles" element={<RolesPage />} />
           <Route
             path="/cuenta-corriente/clientes"
             element={<CuentaCorrientePage tipo="clientes" />}

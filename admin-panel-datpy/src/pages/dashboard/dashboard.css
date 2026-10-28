@@ -106,3 +106,14 @@
   box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
   outline: none;
 }
+
+/* Accesos rápidos compactos (barra de botones chicos bajo el encabezado). */
+.dashboard-quick-btn {
+  border-radius: 999px !important;
+}
+
+@media (max-width: 576px) {
+  .dashboard-quick-actions .dashboard-quick-btn {
+    flex: 1 1 calc(50% - 0.5rem);
+  }
+}

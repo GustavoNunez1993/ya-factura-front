@@ -24,6 +24,9 @@ import { KudeService } from "../../services/KudeService";
 import { verificarCajaAbierta } from "../../utils/caja";
 import { descargarBoletaVentaPdf } from "../../comprobantes/invoices";
 import SifenRespuestaDialog from "./SifenRespuestaDialog";
+import { codigoMoneda, formatMonto } from "../../utils/moneda";
+import { usePermisos } from "../../hooks/usePermisos";
+import type { Menu } from "../../seguridad/permisos";
 
 interface FacturaListado {
   id: string;
@@ -35,6 +38,8 @@ interface FacturaListado {
   clienteRazonSocial: string | null;
   clienteDocumento: string;
   total: number;
+  /** Moneda del comprobante (1 PYG, 2 USD, 3 BRL, 4 EUR): el total está en esa moneda. */
+  monedaId?: number | null;
   estado: string;
   cdc?: string;
   estadoSifen?: string;
@@ -118,6 +123,10 @@ export default function FacturasListadoPage({
     ? opcionesTiposDocumento.filter((t) => t.value !== 1)
     : opcionesTiposDocumento;
   const conImportes = tipoFijo !== 7; // la remisión no informa valores
+  // Acciones según el rol (el back valida igual cada una).
+  const { puede } = usePermisos();
+  const MENU_POR_TIPO: Record<number, Menu> = { 1: "FACTURAS", 4: "AUTOFACTURAS", 5: "NOTAS_CREDITO", 6: "NOTAS_DEBITO", 7: "NOTAS_REMISION" };
+  const puedeCrear = tipoFijo ? puede(MENU_POR_TIPO[tipoFijo] ?? "FACTURAS", "CREAR") : false;
   const [facturas, setFacturas] = useState<FacturaListado[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
@@ -242,14 +251,6 @@ export default function FacturasListadoPage({
     if (rutaNuevo) irAEmitir(rutaNuevo);
   };
 
-  const formatMoney = (value: number) => {
-    return new Intl.NumberFormat("es-PY", {
-      style: "currency",
-      currency: "PYG",
-      maximumFractionDigits: 0
-    }).format(value || 0);
-  };
-
   const numeracionBody = (rowData: FacturaListado) => {
     return `${rowData.dEst}-${rowData.dPunExp}-${rowData.dNumDoc}`;
   };
@@ -262,7 +263,7 @@ export default function FacturasListadoPage({
   const totalBody = (rowData: FacturaListado) => {
     // La remisión no informa valores.
     if (rowData.tipoDocumentoElectronico === 7) return "-";
-    return formatMoney(rowData.total || 0);
+    return formatMonto(rowData.total, rowData.monedaId);
   };
 
 const estadoBody = (rowData: FacturaListado) => {
@@ -585,7 +586,7 @@ const estadoBody = (rowData: FacturaListado) => {
         puntoExpedicion: `${res.dEst}-${res.dPunExp}`,
         nroDoc: `${res.dEst ?? res.dest}-${res.dPunExp ?? res.dpunExp}-${res.dNumDoc ?? res.dnumDoc ?? "0000001"}`,
         fecha: res.dFeEmiDE ? new Date(res.dFeEmiDE) : new Date(),
-        moneda: res.moneda ?? "PYG",
+        moneda: codigoMoneda(res.monedaId),
         condicionVenta,
         condicionLabel: condicionVenta === 1 ? "Contado" : "Crédito",
         clienteRazonSocial: res.dNomRec ?? res.clienteRazonSocial ?? "-",
@@ -630,6 +631,7 @@ const estadoBody = (rowData: FacturaListado) => {
   const accionesBody = (rowData: FacturaListado) => {
     return (
       <div className="flex gap-2 justify-content-end">
+        {puede("DOCUMENTOS_ELECTRONICOS", "PDF") && (
         <Button
           icon="pi pi-file-pdf"
           severity="info"
@@ -639,8 +641,9 @@ const estadoBody = (rowData: FacturaListado) => {
           loading={loadingInforme === rowData.id}
           onClick={() => verKude(rowData)}
         />
+        )}
 
-        {esEditable(rowData) && (
+        {esEditable(rowData) && puede("FACTURAS", "EDITAR") && (
           <Button
             icon="pi pi-pencil"
             severity="warning"
@@ -651,6 +654,7 @@ const estadoBody = (rowData: FacturaListado) => {
           />
         )}
 
+        {puede("DOCUMENTOS_ELECTRONICOS", "SIFEN") && (
         <Button
           icon="pi pi-send"
           severity="help"
@@ -660,8 +664,9 @@ const estadoBody = (rowData: FacturaListado) => {
           loading={loadingSifen === rowData.id}
           onClick={() => enviarASifen(rowData)}
         />
+        )}
 
-        {rowData.cdc && (
+        {rowData.cdc && puede("DOCUMENTOS_ELECTRONICOS", "XML") && (
           <Button
             icon="pi pi-code"
             severity="info"
@@ -675,6 +680,7 @@ const estadoBody = (rowData: FacturaListado) => {
 
         {conAccionesDeFactura && (
           <>
+        {puede("NOTAS_CREDITO", "CREAR") && (
         <Button
           icon="pi pi-replay"
           severity="warning"
@@ -685,7 +691,9 @@ const estadoBody = (rowData: FacturaListado) => {
           loading={loadingSifen === rowData.id}
           onClick={() => emitirNotaCredito(rowData)}
         />
+        )}
 
+        {puede("NOTAS_REMISION", "CREAR") && (
         <Button
           icon="pi pi-truck"
           severity="secondary"
@@ -695,7 +703,9 @@ const estadoBody = (rowData: FacturaListado) => {
           disabled={!esFactura(rowData)}
           onClick={() => irAEmitir(`/nota-remision-create?facturaId=${rowData.id}`)}
         />
+        )}
 
+        {puede("NOTAS_DEBITO", "CREAR") && (
         <Button
           icon="pi pi-plus-circle"
           severity="secondary"
@@ -705,10 +715,12 @@ const estadoBody = (rowData: FacturaListado) => {
           disabled={!esFactura(rowData) || !puedeAnularse(rowData)}
           onClick={() => emitirNotaDebito(rowData)}
         />
+        )}
 
           </>
         )}
 
+        {puede("DOCUMENTOS_ELECTRONICOS", "SIFEN") && (
         <Button
           icon="pi pi-ban"
           severity="danger"
@@ -718,6 +730,7 @@ const estadoBody = (rowData: FacturaListado) => {
           disabled={!puedeAnularse(rowData)}
           onClick={() => anularFactura(rowData)}
         />
+        )}
       </div>
     );
   };
@@ -809,7 +822,7 @@ const estadoBody = (rowData: FacturaListado) => {
           <h2 className="m-0" style={{ fontSize: isMobile ? "18px" : undefined }}>{titulo}</h2>
           <small className="text-color-secondary">{subtitulo}</small>
         </div>
-{rutaNuevo && (
+{rutaNuevo && puedeCrear && (
         <Button
           label={isMobile ? undefined : etiquetaNuevo}
           icon={iconoNuevo}
@@ -946,7 +959,7 @@ const estadoBody = (rowData: FacturaListado) => {
                 {conImportes && (
                   <div className="facturas-card-row">
                     {condicionBody(f)}
-                    <span className="facturas-card-total">{formatMoney(f.total || 0)}</span>
+                    <span className="facturas-card-total">{formatMonto(f.total, f.monedaId)}</span>
                   </div>
                 )}
 
@@ -956,6 +969,7 @@ const estadoBody = (rowData: FacturaListado) => {
                 </div>
 
                 <div className="facturas-card-actions">
+                  {puede("DOCUMENTOS_ELECTRONICOS", "PDF") && (
                   <Button
                     icon="pi pi-file-pdf"
                     label="KuDE"
@@ -965,6 +979,8 @@ const estadoBody = (rowData: FacturaListado) => {
                     loading={loadingInforme === f.id}
                     onClick={() => verKude(f)}
                   />
+                  )}
+                  {puede("DOCUMENTOS_ELECTRONICOS", "SIFEN") && (
                   <Button
                     icon="pi pi-send"
                     label={f.cdc ? "Actualizar" : "Enviar"}
@@ -974,7 +990,8 @@ const estadoBody = (rowData: FacturaListado) => {
                     loading={loadingSifen === f.id}
                     onClick={() => enviarASifen(f)}
                   />
-                  {f.cdc && (
+                  )}
+                  {f.cdc && puede("DOCUMENTOS_ELECTRONICOS", "XML") && (
                     <Button
                       icon="pi pi-code"
                       label="XML"
@@ -987,6 +1004,7 @@ const estadoBody = (rowData: FacturaListado) => {
                   )}
                   {conAccionesDeFactura && (
                     <>
+                  {puede("NOTAS_CREDITO", "CREAR") && (
                   <Button
                     icon="pi pi-replay"
                     label="N. Crédito"
@@ -997,6 +1015,8 @@ const estadoBody = (rowData: FacturaListado) => {
                     loading={loadingSifen === f.id}
                     onClick={() => emitirNotaCredito(f)}
                   />
+                  )}
+                  {puede("NOTAS_REMISION", "CREAR") && (
                   <Button
                     icon="pi pi-truck"
                     label="Remitir"
@@ -1006,6 +1026,8 @@ const estadoBody = (rowData: FacturaListado) => {
                     disabled={!esFactura(f)}
                     onClick={() => irAEmitir(`/nota-remision-create?facturaId=${f.id}`)}
                   />
+                  )}
+                  {puede("NOTAS_DEBITO", "CREAR") && (
                   <Button
                     icon="pi pi-plus-circle"
                     label="N. Débito"
@@ -1015,8 +1037,10 @@ const estadoBody = (rowData: FacturaListado) => {
                     disabled={!esFactura(f) || !puedeAnularse(f)}
                     onClick={() => emitirNotaDebito(f)}
                   />
+                  )}
                     </>
                   )}
+                  {puede("DOCUMENTOS_ELECTRONICOS", "SIFEN") && (
                   <Button
                     icon="pi pi-ban"
                     label="Anular"
@@ -1026,6 +1050,7 @@ const estadoBody = (rowData: FacturaListado) => {
                     disabled={!puedeAnularse(f)}
                     onClick={() => anularFactura(f)}
                   />
+                  )}
                 </div>
               </div>
             ))

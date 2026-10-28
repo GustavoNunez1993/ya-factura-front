@@ -12,6 +12,7 @@ import { Dropdown } from "primereact/dropdown";
 import { SubFamiliaService } from "../../services/SubFamiliaService";
 import { FamiliaService } from "../../services/FamiliaService";
 import { useIsMobile } from "../../hooks/useIsMobile";
+import { usePermisos } from "../../hooks/usePermisos";
 
 interface Familia {
   id: string;
@@ -26,6 +27,8 @@ interface SubFamilia {
 }
 
 export default function SubFamiliasPage() {
+    // Botones según el rol (el back valida igual cada acción).
+    const { puede } = usePermisos();
 
   const [subFamilias, setSubFamilias] = useState<SubFamilia[]>([]);
   const [familias, setFamilias] = useState<Familia[]>([]);
@@ -222,6 +225,7 @@ export default function SubFamiliasPage() {
         onClick={() => ver(rowData)}
       />
 
+      {puede("SUBFAMILIAS", "EDITAR") && (
       <Button
         icon="pi pi-pencil"
         rounded
@@ -229,7 +233,9 @@ export default function SubFamiliasPage() {
         severity="warning"
         onClick={() => editar(rowData)}
       />
+      )}
 
+      {puede("SUBFAMILIAS", "ELIMINAR") && (
       <Button
         icon="pi pi-trash"
         rounded
@@ -237,6 +243,7 @@ export default function SubFamiliasPage() {
         severity="danger"
         onClick={() => eliminar(rowData.id)}
       />
+      )}
 
     </div>
 
@@ -251,7 +258,9 @@ export default function SubFamiliasPage() {
           <h2 className="m-0">Sub Familias</h2>
           <small className="text-color-secondary">Catálogo de sub familias</small>
         </div>
+        {puede("SUBFAMILIAS", "CREAR") && (
         <Button label="Nueva SubFamilia" icon="pi pi-plus" severity="success" onClick={abrirNuevo} />
+        )}
       </div>
 
       <div className="p-input-icon-left mb-3 w-full">

@@ -18,6 +18,7 @@ import { PaisService } from "../../services/PaisService";
 import { DepartamentoService } from "../../services/DepartamentoService";
 import { DistritoService } from "../../services/DistritoService";
 import { TipoDocumentoService } from "../../services/TipoDocumentoService";
+import { usePermisos } from "../../hooks/usePermisos";
 
 interface Opcion {
     id: string | number;
@@ -63,6 +64,8 @@ interface Persona {
 }
 
 export default function PersonasPage() {
+    // Botones según el rol (el back valida igual cada acción).
+    const { puede } = usePermisos();
     const empresaId = localStorage.getItem("empresaId") || "";
 
     const TIPO_CONTRIBUYENTE = {
@@ -528,6 +531,7 @@ const adaptarPersonaDesdeApi = (data: any): Persona => ({
                 tooltip="Ver"
                 onClick={() => ver(rowData)}
             />
+            {puede("PERSONAS", "EDITAR") && (
             <Button
                 icon="pi pi-pencil"
                 rounded
@@ -536,6 +540,8 @@ const adaptarPersonaDesdeApi = (data: any): Persona => ({
                 tooltip="Editar"
                 onClick={() => editar(rowData)}
             />
+            )}
+            {puede("PERSONAS", "ELIMINAR") && (
             <Button
                 icon="pi pi-trash"
                 rounded
@@ -544,6 +550,7 @@ const adaptarPersonaDesdeApi = (data: any): Persona => ({
                 tooltip="Eliminar"
                 onClick={() => eliminar(rowData.id)}
             />
+            )}
         </div>
     );
 
@@ -585,7 +592,9 @@ const adaptarPersonaDesdeApi = (data: any): Persona => ({
                     <h2 className="m-0">Personas</h2>
                     <small className="text-color-secondary">Gestión de personas</small>
                 </div>
+                {puede("PERSONAS", "CREAR") && (
                 <Button label="Nueva Persona" icon="pi pi-plus" severity="success" onClick={abrirNuevo} />
+                )}
             </div>
 
             <div className="p-input-icon-left mb-3 w-full">

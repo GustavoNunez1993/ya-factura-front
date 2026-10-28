@@ -1,4 +1,5 @@
 import axios from "axios";
+import Swal from "sweetalert2";
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL
@@ -71,6 +72,13 @@ api.interceptors.response.use(
         window.location.href = "/login";
 
         return Promise.reject(err);
+      }
+    }
+
+    if (error.response?.status === 403) {
+      const mensaje = error.response?.data?.message;
+      if (mensaje) {
+        Swal.fire({ icon: "warning", title: "Sin permiso", text: mensaje });
       }
     }
 

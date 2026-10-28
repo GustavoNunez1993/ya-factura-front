@@ -14,6 +14,7 @@ import { ColorService } from "../services/ColorService";
 import { TalleService } from "../services/TalleService";
 import { VarianteProductoService } from "../services/VarianteProductoService";
 import { useIsMobile } from "../hooks/useIsMobile";
+import { usePermisos } from "../hooks/usePermisos";
 
 interface SelectorOption {
   value: string;
@@ -29,6 +30,8 @@ interface VarianteProducto {
 }
 
 export default function SeleccionProductoColorTallePage() {
+    // Botones según el rol (el back valida igual cada acción).
+    const { puede } = usePermisos();
   const isMobile = useIsMobile();
 
   const [variantes, setVariantes] = useState<VarianteProducto[]>([]);
@@ -312,7 +315,9 @@ export default function SeleccionProductoColorTallePage() {
 
   const accionesTemplate = (rowData: VarianteProducto) => (
     <div className="flex gap-2 justify-content-center">
+      {puede("SELECTOR_PRODUCTO", "ELIMINAR") && (
       <Button icon="pi pi-trash" rounded text severity="danger" tooltip="Eliminar" onClick={() => eliminar(rowData.id)} />
+      )}
     </div>
   );
 
@@ -323,7 +328,9 @@ export default function SeleccionProductoColorTallePage() {
           <h2 className="m-0">Variantes de producto</h2>
           <small className="text-color-secondary">Combinaciones de producto, color y talle</small>
         </div>
+        {puede("SELECTOR_PRODUCTO", "CREAR") && (
         <Button label="Nueva variante" icon="pi pi-plus" severity="success" onClick={abrirNuevo} />
+        )}
       </div>
 
       <div className="p-input-icon-left mb-3 w-full">

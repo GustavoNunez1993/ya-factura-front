@@ -19,6 +19,7 @@ import { StockService, type StockItem, type StockIngresoLoteItem } from "../../s
 import { DepositoService, type Deposito } from "../../services/DepositoService";
 import { ProductosService } from "../../services/ProductosService";
 import { useIsMobile } from "../../hooks/useIsMobile";
+import { usePermisos } from "../../hooks/usePermisos";
 
 interface Producto {
   id: string;
@@ -103,6 +104,8 @@ const obtenerMensajeError = (error: any, fallback: string) => {
 };
 
 export default function StockPage() {
+  // Acciones según el rol (el back valida igual cada una).
+  const { puede } = usePermisos();
   const navigate = useNavigate();
 
   const [stock, setStock] = useState<StockItem[]>([]);
@@ -462,9 +465,15 @@ export default function StockPage() {
 
   const accionesTemplate = (rowData: StockItem) => (
     <div className="flex gap-1 justify-content-center">
+      {puede("STOCK", "EDITAR") && (
       <Button icon="pi pi-pencil" rounded text severity="warning" tooltip="Ajustar" onClick={() => abrirAjuste(rowData)} />
+      )}
+      {puede("TRANSFERENCIAS", "CREAR") && (
       <Button icon="pi pi-arrow-right-arrow-left" rounded text severity="info" tooltip="Solicitar transferencia" onClick={() => abrirTransferencia(rowData)} />
+      )}
+      {puede("STOCK", "ELIMINAR") && (
       <Button icon="pi pi-trash" rounded text severity="danger" tooltip="Eliminar" onClick={() => eliminarStock(rowData)} />
+      )}
     </div>
   );
 
@@ -476,8 +485,12 @@ export default function StockPage() {
           <small className="text-color-secondary">Existencias por producto y depósito</small>
         </div>
         <div className="flex gap-2">
+          {puede("TRANSFERENCIAS", "LISTAR") && (
           <Button label="Transferencias" icon="pi pi-arrow-right-arrow-left" severity="secondary" outlined onClick={() => navigate("/stock/transferencias")} />
+          )}
+          {puede("STOCK", "CREAR") && (
           <Button label="Nuevo Ingreso" icon="pi pi-plus" severity="success" onClick={abrirIngreso} />
+          )}
         </div>
       </div>
 

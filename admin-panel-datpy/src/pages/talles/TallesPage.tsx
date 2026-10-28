@@ -10,6 +10,7 @@ import { Column } from "primereact/column";
 
 import { TalleService } from "../../services/TalleService";
 import { useIsMobile } from "../../hooks/useIsMobile";
+import { usePermisos } from "../../hooks/usePermisos";
 
 interface Talle {
   id?: string;
@@ -18,6 +19,8 @@ interface Talle {
 }
 
 export default function TallesPage() {
+    // Botones según el rol (el back valida igual cada acción).
+    const { puede } = usePermisos();
   const [talles, setTalles] = useState<Talle[]>([]);
   const [total, setTotal] = useState(0);
 
@@ -124,6 +127,7 @@ export default function TallesPage() {
           tooltip="Ver"
           onClick={() => ver(rowData)}
         />
+        {puede("TALLES", "EDITAR") && (
         <Button
           icon="pi pi-pencil"
           rounded
@@ -132,6 +136,8 @@ export default function TallesPage() {
           tooltip="Editar"
           onClick={() => editar(rowData)}
         />
+        )}
+        {puede("TALLES", "ELIMINAR") && (
         <Button
           icon="pi pi-trash"
           rounded
@@ -140,6 +146,7 @@ export default function TallesPage() {
           tooltip="Eliminar"
           onClick={() => eliminar(rowData.id)}
         />
+        )}
       </div>
     );
   };
@@ -151,7 +158,9 @@ export default function TallesPage() {
           <h2 className="m-0">Talles</h2>
           <small className="text-color-secondary">Catálogo de talles de productos</small>
         </div>
+        {puede("TALLES", "CREAR") && (
         <Button label="Nuevo Talle" icon="pi pi-plus" severity="success" onClick={abrirNuevo} />
+        )}
       </div>
 
       <div className="p-input-icon-left mb-3 w-full">

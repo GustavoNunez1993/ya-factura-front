@@ -10,6 +10,7 @@ import { Column } from "primereact/column";
 
 import { BancoService, type Banco } from "../../services/BancoService";
 import { useIsMobile } from "../../hooks/useIsMobile";
+import { usePermisos } from "../../hooks/usePermisos";
 
 const formularioInicial: Banco = {
   codigo: "",
@@ -17,6 +18,8 @@ const formularioInicial: Banco = {
 };
 
 export default function BancosPage() {
+    // Botones según el rol (el back valida igual cada acción).
+    const { puede } = usePermisos();
 
   const [bancos, setBancos] = useState<Banco[]>([]);
   const [search, setSearch] = useState("");
@@ -194,6 +197,7 @@ export default function BancosPage() {
         tooltip="Ver"
         onClick={() => ver(rowData)}
       />
+      {puede("BANCOS", "EDITAR") && (
       <Button
         icon="pi pi-pencil"
         rounded
@@ -202,6 +206,8 @@ export default function BancosPage() {
         tooltip="Editar"
         onClick={() => editar(rowData)}
       />
+      )}
+      {puede("BANCOS", "ELIMINAR") && (
       <Button
         icon="pi pi-trash"
         rounded
@@ -210,6 +216,7 @@ export default function BancosPage() {
         tooltip="Eliminar"
         onClick={() => eliminar(rowData.id)}
       />
+      )}
     </div>
   );
 
@@ -244,7 +251,9 @@ export default function BancosPage() {
           <h2 className="m-0">Bancos</h2>
           <small className="text-color-secondary">Catálogo de bancos</small>
         </div>
+        {puede("BANCOS", "CREAR") && (
         <Button label="Nuevo Banco" icon="pi pi-plus" severity="success" onClick={abrirNuevo} />
+        )}
       </div>
 
       <div className="p-input-icon-left mb-3 w-full">

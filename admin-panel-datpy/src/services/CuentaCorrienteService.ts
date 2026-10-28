@@ -20,6 +20,8 @@ export interface RegistrarPagoCuentaCorrientePayload {
 
 export interface FormaPagoResumen {
   descripcion: string;
+  /** Moneda del cobro (ISO 4217): cada moneda se reparte por separado. */
+  moneda: string;
   monto: number;
 }
 
@@ -28,13 +30,19 @@ export interface CobroReciente {
   clienteNombre: string;
   facturaNumero: string;
   monto: number;
+  /** Moneda de la factura cobrada: el monto está en esa moneda. */
+  monedaId?: number | null;
   fecha: string;
   hora: string;
 }
 
 export interface CobrosResumen {
   totalCobrado: number;
+  /** Lo cobrado por moneda de la factura (clave: monedaId). */
+  totalCobradoPorMoneda?: Record<string, number>;
   totalPendiente: number;
+  /** Saldo pendiente por moneda (clave: monedaId). */
+  totalPendientePorMoneda?: Record<string, number>;
   porFormaPago: FormaPagoResumen[];
   ultimosCobros: CobroReciente[];
 }

@@ -19,6 +19,7 @@ import { DepartamentoService } from "../../services/DepartamentoService";
 import { DistritoService } from "../../services/DistritoService";
 import { TipoDocumentoService } from "../../services/TipoDocumentoService";
 import { BancoService } from "../../services/BancoService";
+import { usePermisos } from "../../hooks/usePermisos";
 
 interface Opcion {
     id: string | number;
@@ -65,6 +66,8 @@ interface Proveedor {
 }
 
 export default function ProveedoresPage() {
+    // Botones según el rol (el back valida igual cada acción).
+    const { puede } = usePermisos();
     const empresaId = localStorage.getItem("empresaId") || "";
 
     const TIPO_CONTRIBUYENTE = {
@@ -563,6 +566,7 @@ export default function ProveedoresPage() {
                 tooltip="Ver"
                 onClick={() => ver(rowData)}
             />
+            {puede("PROVEEDORES", "EDITAR") && (
             <Button
                 icon="pi pi-pencil"
                 rounded
@@ -571,6 +575,8 @@ export default function ProveedoresPage() {
                 tooltip="Editar"
                 onClick={() => editar(rowData)}
             />
+            )}
+            {puede("PROVEEDORES", "ELIMINAR") && (
             <Button
                 icon="pi pi-trash"
                 rounded
@@ -579,6 +585,7 @@ export default function ProveedoresPage() {
                 tooltip="Dar de baja"
                 onClick={() => eliminar(rowData.id)}
             />
+            )}
         </div>
     );
 
@@ -620,7 +627,9 @@ export default function ProveedoresPage() {
                     <h2 className="m-0">Proveedores</h2>
                     <small className="text-color-secondary">Gestión de proveedores</small>
                 </div>
+                {puede("PROVEEDORES", "CREAR") && (
                 <Button label="Nuevo Proveedor" icon="pi pi-plus" severity="success" onClick={abrirNuevo} />
+                )}
             </div>
 
             <div className="p-input-icon-left mb-3 w-full">

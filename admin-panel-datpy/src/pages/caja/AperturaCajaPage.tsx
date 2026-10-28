@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 
 import { Button } from "primereact/button";
@@ -16,6 +17,7 @@ import { useAuth } from "../../context/AuthContext";
 import type { CajaAperturaCierreFiltros } from "../../services/CajaAperturaCierreService";
 import { CajaAperturaCierreService } from "../../services/CajaAperturaCierreService";
 import { useIsMobile } from "../../hooks/useIsMobile";
+import { usePermisos } from "../../hooks/usePermisos";
 
 interface CajaAperturaCierre {
   id: string;
@@ -113,7 +115,10 @@ const obtenerMensajeError = (error: any, fallback: string) => {
 };
 
 export default function AperturaCajaPage() {
+  // Acciones según el rol (el back valida igual cada una).
+  const { puede } = usePermisos();
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   const isMobile = useIsMobile();
   const [cajas, setCajas] = useState<CajaAperturaCierre[]>([]);
@@ -430,8 +435,12 @@ export default function AperturaCajaPage() {
   const anularCaja = async (caja: CajaAperturaCierre) => {
     const result = await Swal.fire({
       icon: "warning",
-      title: "Anular caja",
-      text: `¿Desea anular la caja ${caja.nroCaja}?`,
+      title: `Anular la caja ${caja.nroCaja} del ${formatDate(caja.fechaApertura)}`,
+      text: "Sólo para una apertura hecha por error: si ya tiene ventas o cobros hay que cerrarla. Indique el motivo:",
+      input: "textarea",
+      inputPlaceholder: "Ej.: se abrió con la fecha equivocada",
+      inputValidator: (valor) =>
+        !valor || valor.trim().length < 5 ? "Indique un motivo de al menos 5 caracteres" : undefined,
       showCancelButton: true,
       confirmButtonText: "Sí, anular",
       cancelButtonText: "Cancelar",
@@ -440,22 +449,20 @@ export default function AperturaCajaPage() {
 
     if (!result.isConfirmed) return;
 
-    Swal.fire("Atención", "Todavía falta crear el endpoint de anulación.", "info");
+    try {
+      await CajaAperturaCierreService.anular(caja.id, String(result.value).trim(), getUsuarioId(user));
+      Swal.fire("Caja anulada", `La caja ${caja.nroCaja} del ${formatDate(caja.fechaApertura)} quedó anulada.`, "success");
+      cargarCajas();
+    } catch (error: unknown) {
+      const mensaje =
+        (error as { response?: { data?: { message?: string } } })?.response?.data?.message ?? "No se pudo anular la caja";
+      Swal.fire("No se puede anular", mensaje, "error");
+    }
   };
 
-  const cerrarCaja = async (caja: CajaAperturaCierre) => {
-    const result = await Swal.fire({
-      icon: "question",
-      title: "Cerrar caja",
-      text: `¿Desea cerrar la caja ${caja.nroCaja}?`,
-      showCancelButton: true,
-      confirmButtonText: "Sí, cerrar",
-      cancelButtonText: "Cancelar"
-    });
-
-    if (!result.isConfirmed) return;
-
-    Swal.fire("Atención", "Todavía falta crear el endpoint de cierre.", "info");
+  // El cierre (arqueo por moneda) se hace en su pantalla, sobre esta caja en particular.
+  const cerrarCaja = (caja: CajaAperturaCierre) => {
+    navigate(`/cierre-caja?aperturaId=${caja.id}`);
   };
 
   const accionesBody = (rowData: CajaAperturaCierre) => {
@@ -472,6 +479,7 @@ export default function AperturaCajaPage() {
           onClick={() => verDetalles(rowData)}
         />
 
+        {puede("APERTURA_CAJA", "ANULAR") && (
         <Button
           icon="pi pi-ban"
           severity="danger"
@@ -481,7 +489,9 @@ export default function AperturaCajaPage() {
           disabled={!cajaAbierta}
           onClick={() => anularCaja(rowData)}
         />
+        )}
 
+        {puede("CIERRE_CAJA", "CERRAR") && (
         <Button
           icon="pi pi-lock"
           severity="warning"
@@ -491,6 +501,7 @@ export default function AperturaCajaPage() {
           disabled={!cajaAbierta}
           onClick={() => cerrarCaja(rowData)}
         />
+        )}
       </div>
     );
   };
@@ -554,7 +565,8 @@ export default function AperturaCajaPage() {
             <label>Monto apertura</label>
             <InputText
               className="w-full"
-              value={form.montoApertura}
+              // Se guardan sólo los dígitos; se muestra con separador de miles (50.000).
+              value={form.montoApertura ? new Intl.NumberFormat("es-PY").format(Number(form.montoApertura)) : ""}
               placeholder="0"
               inputMode="numeric"
               onChange={(e) =>
@@ -567,6 +579,7 @@ export default function AperturaCajaPage() {
           </div>
 
           <div className="col-12 lg:col-4 flex gap-2">
+            {puede("APERTURA_CAJA", "CREAR") && (
             <Button
               label="Abrir caja"
               icon="pi pi-play-circle"
@@ -574,6 +587,7 @@ export default function AperturaCajaPage() {
               loading={guardando}
               onClick={guardarApertura}
             />
+            )}
             <Button
               label="Limpiar"
               icon="pi pi-refresh"

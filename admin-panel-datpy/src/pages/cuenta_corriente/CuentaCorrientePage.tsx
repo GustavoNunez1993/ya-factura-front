@@ -13,6 +13,7 @@ import { Tag } from "primereact/tag";
 
 import { PersonaService } from "../../services/PersonaService";
 import { CuentaCorrienteService } from "../../services/CuentaCorrienteService";
+import { usePermisos } from "../../hooks/usePermisos";
 
 interface Props {
   tipo: "clientes" | "proveedores";
@@ -84,6 +85,8 @@ const nuevoIdTemporal = () => {
 };
 
 export default function CuentaCorrientePage({ tipo }: Props) {
+  // Acciones según el rol (el back valida igual cada una).
+  const { puede } = usePermisos();
   const esCliente = tipo === "clientes";
 
   const [clientes, setClientes] = useState<Cliente[]>([]);
@@ -472,6 +475,7 @@ export default function CuentaCorrientePage({ tipo }: Props) {
           </small>
         </div>
 
+        {puede("CC_CLIENTES", "COBRAR") && (
         <Button
           label="Registrar pago"
           icon="pi pi-check"
@@ -480,6 +484,7 @@ export default function CuentaCorrientePage({ tipo }: Props) {
           loading={registrandoPago}
           disabled={!facturasSeleccionadas.length}
         />
+        )}
       </div>
 
       <div className="grid align-items-end mb-3">
